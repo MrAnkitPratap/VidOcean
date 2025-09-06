@@ -1,0 +1,7 @@
+# Instagram Cookies for yt-dlp
+# Generated for social media downloading
+.instagram.com	TRUE	/	TRUE	1735689600	sessionid	your_session_id_here
+.instagram.com	TRUE	/	TRUE	1735689600	csrftoken	your_csrf_token_here
+.instagram.com	TRUE	/	FALSE	1735689600	mid	your_mid_here
+.instagram.com	TRUE	/	TRUE	1735689600	ig_did	your_ig_did_here
+.instagram.com	TRUE	/	FALSE	1735689600	ig_nrcb	1

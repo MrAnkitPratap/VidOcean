@@ -28,11 +28,10 @@ export function Navbar() {
     { icon: Instagram, label: "Instagram", href: "/instagram" },
     { icon: Facebook, label: "Facebook", href: "/facebook" },
     { icon: Youtube, label: "YouTube", href: "/youtube" },
-    { icon: Music, label: "TikTok", href: "/tiktok" }, // ✅ Added TikTok
+    { icon: Music, label: "TikTok", href: "/tiktok" },
   ];
 
   const menuItems = [
-    // ✅ Removed Settings
     { icon: Info, label: "About", href: "/about" },
   ];
 
@@ -44,13 +43,18 @@ export function Navbar() {
       <nav className="hidden lg:block fixed top-6 left-1/2 transform -translate-x-1/2 z-50 w-auto">
         <GlassCard className="px-8 py-4 border border-cyan-400/20">
           <div className="flex items-center space-x-8">
-            {/* Logo */}
+            {/* 🌊 FIXED LOGO - vidocean with Waves icon */}
             <Link
               href="/"
-              className="flex items-center space-x-3 whitespace-nowrap text-white font-bold text-lg bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent hover:from-cyan-300 hover:to-blue-300 transition-all duration-300"
+              className="flex items-center space-x-3 whitespace-nowrap group"
             >
-              <Waves size={24} className="text-cyan-400" />
-              <span>VidOcean</span>
+              <div className="relative">
+                <Waves size={28} className="text-cyan-400 group-hover:text-cyan-300 transition-all duration-300 animate-pulse" />
+                <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-lg group-hover:bg-cyan-300/30 transition-all duration-300"></div>
+              </div>
+              <span className="text-white font-bold text-xl bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:to-blue-300 transition-all duration-300">
+                vidocean
+              </span>
             </Link>
 
             {/* Main Navigation */}
@@ -71,7 +75,7 @@ export function Navbar() {
               ))}
             </div>
 
-            {/* Secondary Navigation - Only About now */}
+            {/* Secondary Navigation */}
             <div className="flex space-x-4">
               {menuItems.map((item) => (
                 <Link
@@ -96,18 +100,22 @@ export function Navbar() {
       <nav className="hidden md:block lg:hidden fixed top-4 left-4 right-4 z-50">
         <GlassCard className="px-6 py-3 border border-cyan-400/20">
           <div className="flex items-center justify-between">
-            {/* Logo */}
+            {/* 🌊 FIXED LOGO - Tablet version */}
             <Link
               href="/"
-              className="text-white font-bold text-lg bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent hover:from-cyan-300 hover:to-blue-300 transition-all duration-300 flex items-center space-x-2"
+              className="flex items-center space-x-2 group"
             >
-              <Waves size={20} className="text-cyan-400" />
-              <span>VidOcean</span>
+              <div className="relative">
+                <Waves size={24} className="text-cyan-400 group-hover:text-cyan-300 transition-all duration-300" />
+                <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-md group-hover:bg-cyan-300/30 transition-all duration-300"></div>
+              </div>
+              <span className="text-white font-bold text-lg bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:to-blue-300 transition-all duration-300">
+                vidocean
+              </span>
             </Link>
 
             {/* Compact Navigation */}
             <div className="flex items-center space-x-3">
-              {/* Main Nav Items - All 5 now */}
               {navItems.map((item) => (
                 <Link
                   key={item.label}
@@ -123,7 +131,7 @@ export function Navbar() {
                 </Link>
               ))}
 
-              {/* Dropdown Menu - Only About now */}
+              {/* Dropdown Menu */}
               {menuItems.length > 0 && (
                 <div className="relative">
                   <button
@@ -144,16 +152,13 @@ export function Navbar() {
                     />
                   </button>
 
-                  {/* Dropdown Content */}
                   {isDropdownOpen && (
                     <>
-                      {/* Backdrop */}
                       <div
                         className="fixed inset-0 z-40"
                         onClick={() => setIsDropdownOpen(false)}
                       ></div>
 
-                      {/* Dropdown Menu */}
                       <div className="absolute right-0 top-full mt-2 z-50">
                         <GlassCard className="py-2 min-w-[200px] border border-cyan-400/20">
                           {menuItems.map((item) => (
@@ -182,11 +187,10 @@ export function Navbar() {
         </GlassCard>
       </nav>
 
-      {/* Mobile Bottom Navbar (Small screens) */}
+      {/* Mobile Bottom Navbar (Small screens) - NO TOP MARGIN ISSUES */}
       <nav className="md:hidden fixed bottom-4 left-4 right-4 z-50">
         <GlassCard className="px-2 py-3 border border-cyan-400/20">
           <div className="flex justify-around items-center">
-            {/* First 4 nav items */}
             {navItems.slice(0, 4).map((item) => (
               <Link
                 key={item.label}
@@ -201,7 +205,6 @@ export function Navbar() {
                 <span className="text-xs font-medium">{item.label}</span>
               </Link>
             ))}
-            {/* Menu button for TikTok + About */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className={`transition-all duration-300 flex flex-col items-center space-y-1 hover:scale-110 p-2 rounded-lg ${
@@ -217,24 +220,26 @@ export function Navbar() {
         </GlassCard>
       </nav>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile Menu Overlay - IMPROVED SPACING */}
       {isMenuOpen && (
         <>
-          {/* Backdrop */}
           <div
             className="md:hidden fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
             onClick={() => setIsMenuOpen(false)}
           ></div>
 
-          {/* Menu Content */}
+          {/* 🔥 FIXED - Better positioning without top margin issues */}
           <div className="md:hidden fixed bottom-20 left-4 right-4 z-50">
             <GlassCard className="p-6 border border-cyan-400/20">
-              {/* Menu Header */}
+              {/* Menu Header with vidocean logo */}
               <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3 whitespace-nowrap">
-                  <Waves size={24} className="text-cyan-400" />
-                  <span className="text-white font-bold text-lg bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                    VidOcean
+                <div className="flex items-center space-x-3 group">
+                  <div className="relative">
+                    <Waves size={28} className="text-cyan-400 animate-pulse" />
+                    <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-lg"></div>
+                  </div>
+                  <span className="text-white font-bold text-xl bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                    vidocean
                   </span>
                 </div>
 
@@ -246,7 +251,7 @@ export function Navbar() {
                 </button>
               </div>
 
-              {/* Menu Items - TikTok + About */}
+              {/* Menu Items */}
               <div className="space-y-2">
                 {/* TikTok Link */}
                 <Link
@@ -283,7 +288,7 @@ export function Navbar() {
                     <div className="flex-1">
                       <span className="font-medium text-lg">{item.label}</span>
                       <p className="text-xs text-blue-200/70 mt-1">
-                        Learn more about VidOcean
+                        Learn more about vidocean
                       </p>
                     </div>
                   </Link>

@@ -1,5 +1,6 @@
 "use client";
 
+import Head from 'next/head';
 import { useState, useEffect, useRef } from "react";
 import { GlassCard } from "./components/ui/glass-card";
 import {
@@ -26,9 +27,26 @@ import {
   HardDrive,
   Wifi,
   Timer,
+  Cookie,
+  X,
+  Shield,
+  Globe,
+  Zap,
+  Star,
+  MonitorPlay,
+  Smartphone,
+  Users,
+  Headphones,
+  Cloud,
+  TrendingUp,
+  Tv,
+  Radio,
+  PlayCircle,
+  VideoIcon,
 } from "lucide-react";
 import OceanBackground from "./components/OceanBackground";
 
+// SEO Interfaces
 interface DownloadProgress {
   status: "starting" | "downloading" | "processing" | "completed" | "error";
   percentage: number;
@@ -81,37 +99,75 @@ interface LinkDetails {
   platform: string;
 }
 
+interface CompactPlatform {
+  name: string;
+  icon: string;
+  count: number;
+  color: string;
+}
+
 export default function HomePage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetchingFormats, setFetchingFormats] = useState(false);
   const [linkDetails, setLinkDetails] = useState<LinkDetails | null>(null);
-  const [availableFormats, setAvailableFormats] =
-    useState<FormatResponse | null>(null);
+  const [availableFormats, setAvailableFormats] = useState<FormatResponse | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<string>("");
   const [error, setError] = useState("");
-  const [downloadProgress, setDownloadProgress] =
-    useState<DownloadProgress | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [downloadId, setDownloadId] = useState<string | null>(null);
+  const [showCookiePopup, setShowCookiePopup] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  // 🌊 COMPACT SUPPORTED PLATFORMS (no tool name mentioned)
+  const supportedPlatforms: CompactPlatform[] = [
+    { name: "YouTube", icon: "Youtube", count: 1500, color: "text-red-400" },
+    { name: "Instagram", icon: "Instagram", count: 1200, color: "text-pink-400" },
+    { name: "TikTok", icon: "MonitorPlay", count: 1100, color: "text-cyan-400" },
+    { name: "Facebook", icon: "Facebook", count: 1000, color: "text-blue-400" },
+    { name: "Twitter", icon: "Globe", count: 900, color: "text-sky-400" },
+    { name: "Twitch", icon: "Zap", count: 800, color: "text-purple-400" },
+    { name: "Dailymotion", icon: "PlayCircle", count: 700, color: "text-orange-400" },
+    { name: "Vimeo", icon: "VideoIcon", count: 600, color: "text-teal-400" },
+    { name: "Reddit", icon: "Users", count: 500, color: "text-orange-500" },
+    { name: "LinkedIn", icon: "Users", count: 400, color: "text-blue-600" },
+    { name: "SoundCloud", icon: "Radio", count: 300, color: "text-orange-600" },
+    { name: "Spotify", icon: "Music", count: 250, color: "text-green-400" },
+  ];
+
+  // Cookie popup management
+  useEffect(() => {
+    const cookieConsent = localStorage.getItem("vidocean_cookie_consent");
+    if (!cookieConsent) {
+      setShowCookiePopup(true);
+    }
+  }, []);
+
+  const handleCookieAccept = () => {
+    localStorage.setItem("vidocean_cookie_consent", "accepted");
+    setShowCookiePopup(false);
+  };
+
+  const handleCookieDecline = () => {
+    localStorage.setItem("vidocean_cookie_consent", "declined");
+    setShowCookiePopup(false);
+  };
 
   const detectPlatform = (url: string): string => {
     if (!url) return "unknown";
     const cleanUrl = url.toLowerCase().trim();
 
     if (cleanUrl.includes("instagram.com")) return "instagram";
-    if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be"))
-      return "youtube";
-    if (cleanUrl.includes("facebook.com") || cleanUrl.includes("fb.watch"))
-      return "facebook";
+    if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be")) return "youtube";
+    if (cleanUrl.includes("facebook.com") || cleanUrl.includes("fb.watch")) return "facebook";
     if (cleanUrl.includes("tiktok.com")) return "tiktok";
-    if (cleanUrl.includes("twitter.com") || cleanUrl.includes("x.com"))
-      return "twitter";
+    if (cleanUrl.includes("twitter.com") || cleanUrl.includes("x.com")) return "twitter";
+    if (cleanUrl.includes("twitch.tv")) return "twitch";
 
     return "universal";
   };
 
-  const isValidUrl = (urlString: string) => {
+  const isValidUrl = (urlString: string): boolean => {
     try {
       new URL(urlString);
       return true;
@@ -123,10 +179,7 @@ export default function HomePage() {
   useEffect(() => {
     if (url && isValidUrl(url)) {
       const platform = detectPlatform(url);
-
-      // Different delays for different platforms - YouTube gets priority
-      const delay =
-        platform === "youtube" ? 300 : platform === "facebook" ? 800 : 1200;
+      const delay = platform === "youtube" ? 300 : platform === "facebook" ? 800 : 1200;
 
       const timeoutId = setTimeout(() => {
         fetchAvailableFormats(url);
@@ -152,8 +205,6 @@ export default function HomePage() {
   const fetchAvailableFormats = async (videoUrl: string) => {
     setFetchingFormats(true);
     setError("");
-
-    // Clear previous states immediately
     setAvailableFormats(null);
     setSelectedFormat("");
     setLinkDetails(null);
@@ -161,9 +212,7 @@ export default function HomePage() {
     const platform = detectPlatform(videoUrl);
 
     try {
-      const response = await fetch(
-        `/api/list-formats?url=${encodeURIComponent(videoUrl)}`
-      );
+      const response = await fetch(`/api/list-formats?url=${encodeURIComponent(videoUrl)}`);
 
       if (!response.ok) {
         throw new Error(`API returned ${response.status}`);
@@ -172,46 +221,37 @@ export default function HomePage() {
       const data: FormatResponse = await response.json();
 
       if (data.success) {
-        // Force state update with timeout to avoid race conditions
-        setTimeout(() => {
-          setAvailableFormats(data);
+        setAvailableFormats(data);
 
-          // Set link details
-          setLinkDetails({
-            title: data.title,
-            author: data.uploader,
-            duration: data.duration,
-            viewCount: data.view_count,
-            platform: platform,
-            thumbnail:
-              data.thumbnail ||
-              `https://via.placeholder.com/300x200?text=${platform}`,
-          });
+        setLinkDetails({
+          title: data.title,
+          author: data.uploader,
+          duration: data.duration,
+          viewCount: data.view_count,
+          platform: platform,
+          thumbnail: data.thumbnail || `https://via.placeholder.com/300x200?text=${platform}`,
+        });
 
-          // Better auto-selection logic
-          const allFormats = data.formats || [];
-          const recommendedFormats = data.recommended || [];
+        const allFormats = data.formats || [];
+        const recommendedFormats = data.recommended || [];
 
-          let formatToSelect = "";
+        let formatToSelect = "";
 
-          if (platform === "youtube") {
-            // YouTube: Prefer all formats over recommended
-            if (allFormats.length > 0) {
-              formatToSelect = allFormats[0].format_id;
-            }
-          } else {
-            // Other platforms: Prefer recommended
-            if (recommendedFormats.length > 0) {
-              formatToSelect = recommendedFormats[0].format_id;
-            } else if (allFormats.length > 0) {
-              formatToSelect = allFormats[0].format_id;
-            }
+        if (platform === "youtube") {
+          if (allFormats.length > 0) {
+            formatToSelect = allFormats[0].format_id;
           }
-
-          if (formatToSelect) {
-            setSelectedFormat(formatToSelect);
+        } else {
+          if (recommendedFormats.length > 0) {
+            formatToSelect = recommendedFormats[0].format_id;
+          } else if (allFormats.length > 0) {
+            formatToSelect = allFormats[0].format_id;
           }
-        }, 100);
+        }
+
+        if (formatToSelect) {
+          setSelectedFormat(formatToSelect);
+        }
       } else {
         setError(data.error || "Could not get available formats");
         setAvailableFormats(null);
@@ -272,9 +312,7 @@ export default function HomePage() {
       eventSourceRef.current.close();
     }
 
-    const eventSource = new EventSource(
-      `/api/download-progress?id=${downloadId}`
-    );
+    const eventSource = new EventSource(`/api/download-progress?id=${downloadId}`);
     eventSourceRef.current = eventSource;
 
     eventSource.onmessage = (event) => {
@@ -319,23 +357,21 @@ export default function HomePage() {
       instagram: Instagram,
       youtube: Youtube,
       facebook: Facebook,
+      tiktok: MonitorPlay,
+      twitter: Globe,
+      twitch: Zap,
       default: Play,
     };
-    const IconComponent =
-      iconMap[platform as keyof typeof iconMap] || iconMap.default;
+    const IconComponent = iconMap[platform as keyof typeof iconMap] || iconMap.default;
     return <IconComponent className="text-cyan-400" size={16} />;
   };
 
   const getFormatIcon = (format: VideoFormat) => {
-    const hasAudio =
-      format.acodec && format.acodec !== "none" && format.acodec !== null;
+    const hasAudio = format.acodec && format.acodec !== "none" && format.acodec !== null;
 
-    if (format.type === "audio")
-      return <Music size={14} className="text-green-400" />;
-    if (format.type === "video")
-      return <Video size={14} className="text-blue-400" />;
-    if (format.type === "video+audio" || hasAudio)
-      return <Play size={14} className="text-purple-400" />;
+    if (format.type === "audio") return <Music size={14} className="text-green-400" />;
+    if (format.type === "video") return <Video size={14} className="text-blue-400" />;
+    if (format.type === "video+audio" || hasAudio) return <Play size={14} className="text-purple-400" />;
 
     return <Download size={14} className="text-gray-400" />;
   };
@@ -349,7 +385,6 @@ export default function HomePage() {
     </div>
   );
 
-  // YOUTUBE SPECIAL HANDLING: Always show ALL formats for YouTube
   const getFormatsToDisplay = () => {
     if (!availableFormats || !availableFormats.success) {
       return [];
@@ -359,12 +394,10 @@ export default function HomePage() {
     const allFormats = availableFormats.formats || [];
     const recommendedFormats = availableFormats.recommended || [];
 
-    // YouTube: Always show ALL formats
     if (platform === "youtube") {
       return allFormats;
     }
 
-    // Other platforms: recommended first, then all
     return recommendedFormats.length > 0 ? recommendedFormats : allFormats;
   };
 
@@ -372,36 +405,139 @@ export default function HomePage() {
 
   return (
     <>
-      <div className="container mx-auto max-w-5xl px-4">
+      {/* 🔥 SEO HEAD SECTION */}
+      <Head>
+        <title>vidocean - Universal Video Downloader | Download Videos from 1000+ Websites</title>
+        <meta name="description" content="Download videos from YouTube, Instagram, TikTok, Facebook, Twitter and 1000+ other platforms with vidocean. Fast, reliable downloads with multiple format options and real-time progress tracking." />
+        <meta name="keywords" content="vidocean, video downloader, YouTube downloader, Instagram video download, TikTok downloader, Facebook video downloader, Twitter video, universal video downloader, download videos online" />
+        <meta name="author" content="vidocean" />
+        <meta name="robots" content="index, follow" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://vidocean.com/" />
+        <meta property="og:title" content="vidocean - Universal Video Downloader" />
+        <meta property="og:description" content="Download videos quickly from YouTube, Instagram, TikTok, Facebook, Twitter and 1000+ platforms with format selection and live progress tracking." />
+        <meta property="og:image" content="https://vidocean.com/og-image.png" />
+        <meta property="og:site_name" content="vidocean" />
+        <meta property="og:locale" content="en_US" />
+
+        {/* Twitter */}
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta property="twitter:url" content="https://vidocean.com/" />
+        <meta property="twitter:title" content="vidocean - Universal Video Downloader" />
+        <meta property="twitter:description" content="Fast video downloads from 1000+ platforms with format selection and real-time progress." />
+        <meta property="twitter:image" content="https://vidocean.com/og-image.png" />
+
+        {/* JSON-LD Schema */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebApplication",
+              "name": "vidocean",
+              "url": "https://vidocean.com",
+              "description": "Universal video downloader supporting 1000+ websites including YouTube, Instagram, TikTok, Facebook, Twitter and Twitch",
+              "applicationCategory": "MultimediaApplication",
+              "operatingSystem": "Any",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+              }
+            })
+          }}
+        />
+      </Head>
+
+      {/* Cookie Popup */}
+      {showCookiePopup && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end justify-center p-4">
+          <div className="animate-slide-up">
+            <GlassCard variant="strong" className="max-w-2xl w-full p-6 border-l-4 border-l-cyan-400 relative">
+              <button
+                onClick={handleCookieDecline}
+                className="absolute top-4 right-4 text-white/60 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full flex items-center justify-center">
+                    <Cookie className="text-white" size={24} />
+                  </div>
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-white mb-2">
+                    🍪 We Value Your Privacy
+                  </h3>
+                  <p className="text-blue-200 mb-4 leading-relaxed">
+                    vidocean uses cookies to enhance your video downloading experience and improve our service.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={handleCookieAccept}
+                      className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-lg hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center space-x-2"
+                    >
+                      <CheckCircle size={18} />
+                      <span>Accept All</span>
+                    </button>
+                    <button
+                      onClick={handleCookieDecline}
+                      className="flex-1 py-3 bg-gray-600/50 text-white font-medium rounded-lg hover:bg-gray-600/70 transition-all duration-300 flex items-center justify-center space-x-2 border border-gray-500/30"
+                    >
+                      <XCircle size={18} />
+                      <span>Decline</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+      )}
+
+      <div className="container mx-auto max-w-6xl px-4">
         <OceanBackground />
 
-        {/* Hero Section */}
+        {/* 🌊 SEO ENHANCED HERO SECTION */}
         <div className="text-center mb-12">
-          <div className="mb-4">
-            <Waves
-              className="mx-auto mb-3 text-cyan-400 animate-pulse"
-              size={40}
-            />
+          <div className="mb-6">
+            <Waves className="mx-auto mb-4 text-cyan-400 animate-pulse" size={64} />
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-            VidOcean
+          <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent">
+            vidocean
           </h1>
-          <p className="text-lg md:text-xl text-blue-100 max-w-3xl mx-auto leading-relaxed">
-            Universal downloader with format selection • Real-time progress •
-            Direct to browser
+          <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
+            Universal Video Downloader
+          </h2>
+          <p className="text-lg md:text-xl text-blue-100 max-w-4xl mx-auto leading-relaxed mb-8">
+            Download videos from <span className="text-red-400 font-semibold">1000+ websites</span> including{" "}
+            <span className="text-red-400 font-semibold">YouTube</span>, 
+            <span className="text-pink-400 font-semibold"> Instagram</span>, 
+            <span className="text-cyan-400 font-semibold"> TikTok</span>, 
+            <span className="text-blue-400 font-semibold"> Facebook</span>, 
+            <span className="text-sky-400 font-semibold"> Twitter</span> and more
           </p>
         </div>
 
-        {/* Download Interface */}
-        <div className="max-w-4xl mx-auto mb-12">
-          <GlassCard variant="strong" className="p-6">
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full mb-3">
-                <Download className="text-white" size={20} />
+        {/* 🔥 DOWNLOAD INTERFACE - MOVED UP */}
+        <div className="max-w-4xl mx-auto mb-16">
+          <GlassCard variant="strong" className="p-8 border-l-4 border-l-cyan-400">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full mb-4">
+                <Download className="text-white" size={28} />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">VidOcean</h2>
-              <p className="text-blue-100">
-                Choose format • Track progress • Download with audio
+              <h3 className="text-3xl font-bold text-white mb-3">
+                Professional Video Downloader
+              </h3>
+              <p className="text-blue-100 text-lg">
+                Advanced format selection • Real-time progress • Supports 1000+ platforms
               </p>
             </div>
 
@@ -410,51 +546,71 @@ export default function HomePage() {
               <div className="relative">
                 <input
                   type="url"
-                  placeholder="Paste video URL: YouTube, Instagram, TikTok, Facebook, Twitter..."
+                  placeholder="Paste video URL from any of 1000+ supported websites..."
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-black/40 border border-blue-300/20 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm transition-all duration-300"
+                  className="w-full px-6 py-4 rounded-xl bg-black/40 border border-blue-300/20 text-white placeholder-blue-200/50 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-lg transition-all duration-300"
                   disabled={loading}
                 />
                 {fetchingFormats && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <Loader2 className="animate-spin text-cyan-400" size={16} />
+                  <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className="animate-spin text-cyan-400" size={20} />
                   </div>
+                )}
+                {url && (
+                  <button
+                    onClick={() => setUrl("")}
+                    className="absolute right-12 top-1/2 transform -translate-y-1/2 text-cyan-300/60 hover:text-white"
+                  >
+                    <XCircle size={20} />
+                  </button>
                 )}
               </div>
 
-              {/* Preview */}
+              {/* Content Preview */}
               {linkDetails && (
-                <GlassCard className="p-4 border border-cyan-400/30">
-                  <div className="flex items-start space-x-4">
-                    <img
-                      src={linkDetails.thumbnail}
-                      alt="Preview"
-                      className="w-20 h-20 rounded-lg object-cover border border-blue-300/30"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          "https://via.placeholder.com/80x80?text=🌐";
-                      }}
-                    />
+                <GlassCard className="p-6 border border-cyan-400/30">
+                  <div className="flex items-start space-x-6">
+                    <div className="relative flex-shrink-0">
+                      <img
+                        src={linkDetails.thumbnail}
+                        alt={linkDetails.title}
+                        className="w-32 h-24 rounded-xl object-cover border border-blue-300/30"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "https://via.placeholder.com/128x96?text=🎬";
+                        }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-12 h-12 bg-black/50 rounded-full flex items-center justify-center">
+                          <Play className="text-white ml-1" size={16} />
+                        </div>
+                      </div>
+                      {linkDetails.duration && (
+                        <div className="absolute bottom-1 right-1 bg-black/70 px-1 py-0.5 rounded text-white text-xs">
+                          {linkDetails.duration}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-bold text-sm mb-1">
+                      <h4 className="text-white font-bold text-lg mb-2 line-clamp-2">
                         {linkDetails.title}
-                      </h3>
-                      <div className="flex items-center space-x-3 text-xs text-blue-200">
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-blue-200">
                         <div className="flex items-center space-x-1">
                           {getPlatformIcon(linkDetails.platform)}
-                          <span className="capitalize">
-                            {linkDetails.platform}
-                          </span>
+                          <span className="capitalize">{linkDetails.platform}</span>
                         </div>
                         {linkDetails.author && (
-                          <span>• {linkDetails.author}</span>
-                        )}
-                        {linkDetails.duration && (
-                          <span>• {linkDetails.duration}</span>
+                          <div className="flex items-center space-x-1">
+                            <User size={16} />
+                            <span className="truncate max-w-32">{linkDetails.author}</span>
+                          </div>
                         )}
                         {linkDetails.viewCount && (
-                          <span>• {linkDetails.viewCount} views</span>
+                          <div className="flex items-center space-x-1">
+                            <Eye size={16} />
+                            <span>{linkDetails.viewCount} views</span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -462,29 +618,22 @@ export default function HomePage() {
                 </GlassCard>
               )}
 
-              {/* Formats Display */}
+              {/* Format Selection */}
               {formatsToDisplay.length > 0 && (
                 <GlassCard className="p-6 border border-blue-400/30">
                   <div className="flex items-center space-x-3 mb-4">
-                    <List className="text-blue-400" size={20} />
-                    <span className="text-blue-200 font-bold">
-                      Available Formats
+                    <Star className="text-blue-400" size={20} />
+                    <h4 className="text-blue-200 font-bold text-lg">Choose Quality & Format</h4>
+                    <span className="text-xs bg-blue-500/20 px-3 py-1 rounded-full text-blue-300">
+                      {formatsToDisplay.length} options available
                     </span>
-                    <span className="text-xs bg-blue-500/20 px-2 py-1 rounded-full text-blue-300">
-                      {formatsToDisplay.length} found
-                    </span>
-                    {detectPlatform(url) === "youtube" && (
-                      <span className="text-xs bg-red-500/20 px-2 py-1 rounded-full text-red-300">
-                        ▶️ YouTube
-                      </span>
-                    )}
                   </div>
 
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {formatsToDisplay.map((format, index) => (
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    {formatsToDisplay.map((format) => (
                       <label
-                        key={`${format.format_id}-${index}`}
-                        className="flex items-center space-x-3 p-4 rounded-lg hover:bg-white/5 cursor-pointer border border-blue-300/20 transition-all"
+                        key={format.format_id}
+                        className="flex items-center space-x-4 p-4 rounded-lg hover:bg-white/5 cursor-pointer border border-blue-300/20 transition-all"
                       >
                         <input
                           type="radio"
@@ -494,7 +643,6 @@ export default function HomePage() {
                           onChange={(e) => setSelectedFormat(e.target.value)}
                           className="text-blue-400 focus:ring-blue-500 w-4 h-4"
                         />
-
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-1">
                             {getFormatIcon(format)}
@@ -503,23 +651,21 @@ export default function HomePage() {
                             </span>
                             {format.isRecommended && (
                               <span className="text-xs bg-green-500/20 px-2 py-1 rounded-full text-green-300">
-                                ⭐ Best
+                                ⭐ Recommended
                               </span>
                             )}
-                            <span className="text-xs bg-gray-500/20 px-2 py-1 rounded-full text-gray-300">
-                              {format.format_id}
-                            </span>
                           </div>
-
-                          <div className="text-blue-200 text-xs">
+                          <div className="text-blue-200 text-sm">
                             {format.type} •
                             <span className="font-bold text-cyan-300">
-                              {" "}
                               {format.filesizeMB > 0
-                                ? `${format.filesizeMB}MB`
-                                : format.filesize}
+                                ? ` ${format.filesizeMB}MB`
+                                : ` ${format.filesize}`}
                             </span>
                             {format.fps && <span> • {format.fps}fps</span>}
+                            {format.type === "video+audio" && (
+                              <span className="text-green-300"> • Audio included</span>
+                            )}
                           </div>
                         </div>
                       </label>
@@ -528,13 +674,13 @@ export default function HomePage() {
                 </GlassCard>
               )}
 
-              {/* Show loading state while fetching formats */}
+              {/* Loading State */}
               {fetchingFormats && (
                 <GlassCard className="p-6 border border-blue-400/30">
                   <div className="flex items-center justify-center space-x-3">
-                    <Loader2 className="animate-spin text-cyan-400" size={20} />
-                    <span className="text-blue-200">
-                      Getting available formats...
+                    <Loader2 className="animate-spin text-blue-400" size={24} />
+                    <span className="text-blue-200 text-lg">
+                      Analyzing video content and getting available formats...
                     </span>
                   </div>
                 </GlassCard>
@@ -542,26 +688,24 @@ export default function HomePage() {
 
               {/* Progress Display */}
               {downloadProgress && (
-                <GlassCard className="p-6 border border-cyan-400/30">
+                <GlassCard className="p-6 border border-blue-400/30">
                   <div className="space-y-4">
                     <div className="flex items-center space-x-3">
-                      <Activity className="text-cyan-400" size={20} />
-                      <span className="text-cyan-200 font-bold">
-                        Download Progress
-                      </span>
-                      <span className="text-xs bg-cyan-500/20 px-2 py-1 rounded-full text-cyan-300 capitalize">
+                      <Activity className="text-blue-400" size={24} />
+                      <h4 className="text-blue-200 font-bold text-lg">Download Progress</h4>
+                      <span className="text-xs bg-blue-500/20 px-3 py-1 rounded-full text-blue-300 capitalize">
                         {downloadProgress.status}
                       </span>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-white font-bold text-lg">
-                          {downloadProgress.percentage.toFixed(1)}%
+                        <span className="text-white font-bold text-xl">
+                          {downloadProgress.percentage.toFixed(1)}% Complete
                         </span>
                         {downloadProgress.speed && (
-                          <div className="flex items-center space-x-2 text-green-300 text-sm">
-                            <Wifi size={14} />
+                          <div className="flex items-center space-x-2 text-green-300">
+                            <Wifi size={16} />
                             <span>{downloadProgress.speed}</span>
                           </div>
                         )}
@@ -569,21 +713,18 @@ export default function HomePage() {
 
                       <ProgressBar percentage={downloadProgress.percentage} />
 
-                      <div className="flex justify-between items-center text-xs text-blue-200">
-                        {downloadProgress.downloaded &&
-                          downloadProgress.totalSize && (
-                            <div className="flex items-center space-x-2">
-                              <HardDrive size={12} />
-                              <span>
-                                {downloadProgress.downloaded} of{" "}
-                                {downloadProgress.totalSize}
-                              </span>
-                            </div>
-                          )}
-
+                      <div className="flex justify-between items-center text-sm text-blue-200">
+                        {downloadProgress.downloaded && downloadProgress.totalSize && (
+                          <div className="flex items-center space-x-2">
+                            <HardDrive size={14} />
+                            <span>
+                              {downloadProgress.downloaded} of {downloadProgress.totalSize}
+                            </span>
+                          </div>
+                        )}
                         {downloadProgress.eta && (
                           <div className="flex items-center space-x-2 text-yellow-300">
-                            <Timer size={12} />
+                            <Timer size={14} />
                             <span>ETA {downloadProgress.eta}</span>
                           </div>
                         )}
@@ -591,19 +732,15 @@ export default function HomePage() {
                     </div>
 
                     {downloadProgress.message && (
-                      <div className="bg-blue-500/20 rounded-lg p-3">
-                        <p className="text-blue-200 text-sm">
-                          {downloadProgress.message}
-                        </p>
+                      <div className="bg-blue-500/20 rounded-lg p-4">
+                        <p className="text-blue-200">{downloadProgress.message}</p>
                       </div>
                     )}
 
                     {downloadProgress.status === "completed" && (
                       <div className="flex items-center space-x-2 text-green-300">
-                        <CheckCircle size={16} />
-                        <span className="font-medium">
-                          Download completed! File sent to browser.
-                        </span>
+                        <CheckCircle size={20} />
+                        <span className="font-medium">Video downloaded successfully!</span>
                       </div>
                     )}
                   </div>
@@ -613,50 +750,41 @@ export default function HomePage() {
               {/* Download Button */}
               <button
                 onClick={handleDownload}
-                disabled={
-                  loading ||
-                  !url.trim() ||
-                  !selectedFormat ||
-                  formatsToDisplay.length === 0
-                }
-                className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold text-lg rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-3"
+                disabled={loading || !url.trim() || (!selectedFormat && formatsToDisplay.length > 0)}
+                className="w-full py-5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xl rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-3"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="animate-spin" size={24} />
-                    <span>Starting Download...</span>
+                    <Loader2 className="animate-spin" size={28} />
+                    <span>Processing Video...</span>
                   </>
                 ) : (
                   <>
-                    <Download size={24} />
-                    <span>
-                      {selectedFormat
-                        ? `Download ${selectedFormat}`
-                        : "Select Format to Download"}
-                    </span>
-                    <Sparkles size={20} />
+                    <Download size={28} />
+                    <span>Download Video</span>
+                    <Sparkles size={24} />
                   </>
                 )}
               </button>
 
-              {/* Error Display */}
+              {/* Enhanced Error Display */}
               {error && (
-                <div className="flex items-start space-x-3 p-4 bg-red-500/20 border border-red-400/40 rounded-xl">
-                  <XCircle
-                    className="text-red-300 flex-shrink-0 mt-1"
-                    size={20}
-                  />
-                  <div className="flex-1">
-                    <div className="text-red-200 text-sm">{error}</div>
-                    {url && (
-                      <button
-                        onClick={() => fetchAvailableFormats(url)}
-                        className="mt-2 text-red-300 hover:text-red-200 underline text-sm flex items-center space-x-1"
-                      >
-                        <RefreshCw size={14} />
-                        <span>Try getting formats again</span>
-                      </button>
-                    )}
+                <div className="space-y-4">
+                  <div className="flex items-start space-x-3 p-4 bg-red-500/20 border border-red-400/40 rounded-xl">
+                    <XCircle className="text-red-300 flex-shrink-0 mt-1" size={20} />
+                    <div className="flex-1">
+                      <span className="text-red-200 font-medium">Download Error:</span>
+                      <p className="text-red-200 mt-1">{error}</p>
+                      {url && (
+                        <button
+                          onClick={() => fetchAvailableFormats(url)}
+                          className="mt-3 text-red-300 hover:text-red-200 underline text-sm flex items-center space-x-1"
+                        >
+                          <RefreshCw size={14} />
+                          <span>Try analyzing again</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -664,52 +792,169 @@ export default function HomePage() {
           </GlassCard>
         </div>
 
-        {/* Benefits Grid */}
-        <div className="grid md:grid-cols-4 gap-4 mb-8">
-          <GlassCard className="p-4 text-center hover:scale-105 transition-transform duration-300">
-            <List className="mx-auto mb-2 text-cyan-400" size={24} />
-            <h4 className="text-sm font-bold text-white mb-1">
-              Instant Format Display
-            </h4>
-            <p className="text-blue-200 text-xs">See all formats immediately</p>
+        {/* 🔥 COMPACT SUPPORTED PLATFORMS SECTION - MOVED DOWN */}
+        <div className="mb-16">
+          <div className="text-center mb-8">
+            <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">
+              Supports 1000+ Video Platforms
+            </h3>
+            <p className="text-blue-200 max-w-2xl mx-auto">
+              vidocean supports video downloads from virtually any video platform on the internet
+            </p>
+          </div>
+
+          {/* COMPACT GRID - 6 columns on larger screens, smaller cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+            {supportedPlatforms.map((platform, index) => (
+              <GlassCard key={platform.name} className="p-4 text-center hover:scale-105 transition-all duration-300 border border-blue-400/20">
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="w-10 h-10 bg-black/30 rounded-lg flex items-center justify-center">
+                    {platform.name === "YouTube" && <Youtube className={platform.color} size={20} />}
+                    {platform.name === "Instagram" && <Instagram className={platform.color} size={20} />}
+                    {platform.name === "TikTok" && <MonitorPlay className={platform.color} size={20} />}
+                    {platform.name === "Facebook" && <Facebook className={platform.color} size={20} />}
+                    {platform.name === "Twitter" && <Globe className={platform.color} size={20} />}
+                    {platform.name === "Twitch" && <Zap className={platform.color} size={20} />}
+                    {platform.name === "Dailymotion" && <PlayCircle className={platform.color} size={20} />}
+                    {platform.name === "Vimeo" && <VideoIcon className={platform.color} size={20} />}
+                    {platform.name === "Reddit" && <Users className={platform.color} size={20} />}
+                    {platform.name === "LinkedIn" && <Users className={platform.color} size={20} />}
+                    {platform.name === "SoundCloud" && <Radio className={platform.color} size={20} />}
+                    {platform.name === "Spotify" && <Music className={platform.color} size={20} />}
+                  </div>
+                  <div className="text-center">
+                    <h5 className="text-white font-bold text-sm">{platform.name}</h5>
+                    <p className="text-blue-300 text-xs">{platform.count}+ sites</p>
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+
+          {/* Additional platforms indicator */}
+          <div className="text-center">
+            <GlassCard className="inline-block p-4 bg-gradient-to-r from-cyan-500/20 to-blue-600/20 border border-cyan-400/30">
+              <div className="flex items-center space-x-3">
+                <TrendingUp className="text-cyan-400" size={24} />
+                <div className="text-left">
+                  <h5 className="text-white font-bold">+ 988 More Platforms</h5>
+                  <p className="text-blue-200 text-sm">Including Vimeo, Dailymotion, SoundCloud, Spotify, and many more!</p>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+
+        {/* Features Section */}
+        <div className="grid md:grid-cols-3 gap-8 mb-16">
+          <GlassCard className="p-8 text-center hover:scale-105 transition-transform duration-300">
+            <Star className="mx-auto mb-4 text-yellow-400" size={56} />
+            <h4 className="text-2xl font-bold text-white mb-4">Multiple Quality Options</h4>
+            <p className="text-blue-200 leading-relaxed">
+              Download videos in your preferred quality from SD to HD, 4K resolution. Choose from video+audio, 
+              video-only, or audio-only formats for any device.
+            </p>
           </GlassCard>
 
-          <GlassCard className="p-4 text-center hover:scale-105 transition-transform duration-300">
-            <Activity className="mx-auto mb-2 text-green-400" size={24} />
-            <h4 className="text-sm font-bold text-white mb-1">
-              Real-Time Progress
-            </h4>
-            <p className="text-blue-200 text-xs">Live download tracking</p>
+          <GlassCard className="p-8 text-center hover:scale-105 transition-transform duration-300">
+            <Activity className="mx-auto mb-4 text-cyan-400" size={56} />
+            <h4 className="text-2xl font-bold text-white mb-4">Real-Time Progress Tracking</h4>
+            <p className="text-blue-200 leading-relaxed">
+              Watch your downloads progress in real-time with detailed statistics including download speed, 
+              estimated time remaining, file size, and completion percentage.
+            </p>
           </GlassCard>
 
-          <GlassCard className="p-4 text-center hover:scale-105 transition-transform duration-300">
-            <Play className="mx-auto mb-2 text-purple-400" size={24} />
-            <h4 className="text-sm font-bold text-white mb-1">Audio + Video</h4>
-            <p className="text-blue-200 text-xs">No more silent videos</p>
-          </GlassCard>
-
-          <GlassCard className="p-4 text-center hover:scale-105 transition-transform duration-300">
-            <Download className="mx-auto mb-2 text-yellow-400" size={24} />
-            <h4 className="text-sm font-bold text-white mb-1">
-              Browser Download
-            </h4>
-            <p className="text-blue-200 text-xs">Direct to Downloads folder</p>
+          <GlassCard className="p-8 text-center hover:scale-105 transition-transform duration-300">
+            <Music className="mx-auto mb-4 text-green-400" size={56} />
+            <h4 className="text-2xl font-bold text-white mb-4">Audio Quality Guaranteed</h4>
+            <p className="text-blue-200 leading-relaxed">
+              Every video download includes high-quality audio automatically merged with video. Our advanced 
+              processing ensures perfect audio-video synchronization.
+            </p>
           </GlassCard>
         </div>
 
+        {/* FAQ Section */}
+        <GlassCard className="p-8 mb-16">
+          <h3 className="text-3xl font-bold text-white mb-8 text-center">
+            Frequently Asked Questions
+          </h3>
+          <div className="space-y-6">
+            <div>
+              <h5 className="text-xl font-bold text-white mb-2">
+                How many video platforms does vidocean support?
+              </h5>
+              <p className="text-blue-200">
+                vidocean supports over 1000 video platforms including YouTube, Instagram, TikTok, Facebook, 
+                Twitter, Twitch, Vimeo, Dailymotion, SoundCloud, Spotify, and many more.
+              </p>
+            </div>
+            <div>
+              <h5 className="text-xl font-bold text-white mb-2">
+                Can I download videos in HD and 4K quality?
+              </h5>
+              <p className="text-blue-200">
+                Yes! vidocean provides all available quality options from the source platform, including HD (720p, 1080p) 
+                and 4K (2160p) when available. You can also choose audio-only downloads for music content.
+              </p>
+            </div>
+            <div>
+              <h5 className="text-xl font-bold text-white mb-2">
+                Is audio included in video downloads?
+              </h5>
+              <p className="text-blue-200">
+                Absolutely! All video downloads automatically include high-quality audio. Our advanced processing 
+                ensures perfect audio-video synchronization for the best viewing experience.
+              </p>
+            </div>
+            <div>
+              <h5 className="text-xl font-bold text-white mb-2">
+                Is vidocean free to use?
+              </h5>
+              <p className="text-blue-200">
+                Yes, vidocean is completely free to use with no limits, registration, or hidden fees. 
+                Enjoy unlimited downloads from all 1000+ supported platforms.
+              </p>
+            </div>
+          </div>
+        </GlassCard>
+
         {/* Footer */}
         <div className="text-center mb-8">
-          <GlassCard className="p-4">
+          <GlassCard className="p-6">
             <div className="flex items-center justify-center space-x-2 text-blue-200/70">
               <Waves size={16} className="text-cyan-400" />
               <span className="text-sm">
-                Instant Format Display • Real-Time Progress • Made with 💙
+                1000+ Supported Platforms • Real-Time Progress • 100% Free • Made with 💙
               </span>
               <Waves size={16} className="text-cyan-400" />
             </div>
           </GlassCard>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes slide-up {
+          from {
+            transform: translateY(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-up {
+          animation: slide-up 0.4s ease-out forwards;
+        }
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      `}</style>
     </>
   );
 }
