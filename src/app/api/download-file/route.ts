@@ -33,22 +33,24 @@ export async function GET(request: NextRequest) {
 
     const chunkSize = (end - start) + 1;
     
-    // 🔥 OPTIMIZED STREAMING WITH LARGE CHUNKS
+    // 🔥 SUPER FAST STREAMING WITH 1MB CHUNKS
     const stream = createReadStream(filePath, { 
       start, 
       end,
-      highWaterMark: 256 * 1024 // 256KB chunks for maximum speed
+      highWaterMark: 1024 * 1024 // 1MB chunks for maximum speed
     });
 
-    // 🔥 PERFORMANCE HEADERS
+    // 🔥 OPTIMIZED HEADERS FOR INSTANT DOWNLOAD
     const headers = new Headers({
       'Content-Type': 'application/octet-stream',
       'Content-Length': chunkSize.toString(),
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'no-cache, no-store',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       'Connection': 'keep-alive',
-      'Keep-Alive': 'timeout=5, max=1000',
+      'Transfer-Encoding': 'identity', // Disable chunked encoding
     });
 
     // Add range headers if partial content
@@ -56,22 +58,19 @@ export async function GET(request: NextRequest) {
       headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
     }
 
-    // 🔥 SUPER FAST STREAMING
+    // 🔥 INSTANT STREAMING WITHOUT EARLY DELETION
     const readableStream = new ReadableStream({
       start(controller) {
         stream.on('data', (chunk) => {
           controller.enqueue(chunk);
         });
         
-        stream.on('end', async () => {
+        stream.on('end', () => {
           controller.close();
-          // Delete file after streaming completes
-          try {
-            await import('fs').then(fs => fs.promises.unlink(filePath));
-            console.log(`File deleted: ${filename}`);
-          } catch (err) {
-            console.error("Delete failed:", err);
-          }
+          console.log(`Streaming completed for: ${filename}`);
+          
+          // 🚨 DO NOT DELETE FILE HERE - Let cleanup job handle it
+          // File will be cleaned up by background process after sufficient time
         });
         
         stream.on('error', (error) => {
