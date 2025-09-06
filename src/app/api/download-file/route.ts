@@ -8,85 +8,70 @@ export async function GET(request: NextRequest) {
     const filename = searchParams.get("filename");
 
     if (!filename) {
-      return NextResponse.json({ error: "Filename is required" }, { status: 400 });
+      return new Response("Filename required", { status: 400 });
     }
 
     const filePath = path.join(process.cwd(), "public", "downloads", filename);
-
+    
     if (!existsSync(filePath)) {
-      return NextResponse.json({ error: "File not found" }, { status: 404 });
+      return new Response("File not found", { status: 404 });
     }
 
     const stat = statSync(filePath);
     const fileSize = stat.size;
 
-    // 🔥 HANDLE RANGE REQUESTS (Resume support + faster downloads)
-    const range = request.headers.get('range');
+    // 🔥 HANDLE RANGE REQUESTS FOR RESUME + INSTANT STREAMING
     let start = 0;
     let end = fileSize - 1;
-
-    if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
+    
+    const rangeHeader = request.headers.get("range");
+    if (rangeHeader) {
+      const parts = rangeHeader.replace(/bytes=/, "").split("-");
       start = parseInt(parts[0], 10);
       end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
     }
 
-    const chunkSize = (end - start) + 1;
-    
-    // 🔥 SUPER FAST STREAMING WITH 1MB CHUNKS
-    const stream = createReadStream(filePath, { 
-      start, 
+    // Validate range
+    if (start >= fileSize || end >= fileSize || start > end) {
+      return new Response("Range not satisfiable", { status: 416 });
+    }
+
+    const contentLength = end - start + 1;
+
+    // 🔥 ULTRA-FAST STREAMING WITH 2MB CHUNKS
+    const stream = createReadStream(filePath, {
+      start,
       end,
-      highWaterMark: 1024 * 1024 // 1MB chunks for maximum speed
+      highWaterMark: 2 * 1024 * 1024 // 2MB chunks for INSTANT speed
     });
 
-    // 🔥 OPTIMIZED HEADERS FOR INSTANT DOWNLOAD
+    // 🔥 PERFECT HEADERS FOR MAXIMUM SPEED
     const headers = new Headers({
       'Content-Type': 'application/octet-stream',
-      'Content-Length': chunkSize.toString(),
+      'Content-Length': contentLength.toString(),
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
       'Expires': '0',
       'Connection': 'keep-alive',
-      'Transfer-Encoding': 'identity', // Disable chunked encoding
+      'X-Accel-Buffering': 'no', // Disable nginx buffering
     });
 
-    // Add range headers if partial content
-    if (range) {
+    if (rangeHeader) {
       headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
     }
 
-    // 🔥 INSTANT STREAMING WITHOUT EARLY DELETION
-    const readableStream = new ReadableStream({
-      start(controller) {
-        stream.on('data', (chunk) => {
-          controller.enqueue(chunk);
-        });
-        
-        stream.on('end', () => {
-          controller.close();
-          console.log(`Streaming completed for: ${filename}`);
-          
-          // 🚨 DO NOT DELETE FILE HERE - Let cleanup job handle it
-          // File will be cleaned up by background process after sufficient time
-        });
-        
-        stream.on('error', (error) => {
-          console.error('Stream error:', error);
-          controller.error(error);
-        });
-      }
-    });
+    console.log(`🚀 INSTANT STREAMING: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB)`);
 
-    return new Response(readableStream, {
-      status: range ? 206 : 200, // Partial Content or OK
+    // 🔥 RETURN DIRECT STREAM - NO WRAPPER NEEDED
+    return new Response(stream as any, {
+      status: rangeHeader ? 206 : 200,
       headers: headers,
     });
 
   } catch (error: any) {
-    console.error("Download error:", error);
-    return NextResponse.json({ error: "Download failed" }, { status: 500 });
+    console.error("Streaming error:", error);
+    return new Response("Download failed", { status: 500 });
   }
 }
