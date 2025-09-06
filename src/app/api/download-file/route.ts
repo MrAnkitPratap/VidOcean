@@ -11,16 +11,20 @@ export async function GET(request: NextRequest) {
       return new Response("Filename required", { status: 400 });
     }
 
+    // 🔥 CORRECT FILE PATH
     const filePath = path.join(process.cwd(), "public", "downloads", filename);
     
+    console.log(`🔍 Looking for file: ${filePath}`);
+
     if (!existsSync(filePath)) {
+      console.error(`❌ File not found: ${filePath}`);
       return new Response("File not found", { status: 404 });
     }
 
     const stat = statSync(filePath);
     const fileSize = stat.size;
 
-    // 🔥 HANDLE RANGE REQUESTS FOR RESUME + INSTANT STREAMING
+    // 🔥 RANGE REQUESTS SUPPORT
     let start = 0;
     let end = fileSize - 1;
     
@@ -38,14 +42,14 @@ export async function GET(request: NextRequest) {
 
     const contentLength = end - start + 1;
 
-    // 🔥 ULTRA-FAST STREAMING WITH 2MB CHUNKS
+    // 🚀 ULTRA-FAST STREAMING
     const stream = createReadStream(filePath, {
       start,
       end,
-      highWaterMark: 2 * 1024 * 1024 // 2MB chunks for INSTANT speed
+      highWaterMark: 4 * 1024 * 1024 // 4MB chunks for maximum speed
     });
 
-    // 🔥 PERFECT HEADERS FOR MAXIMUM SPEED
+    // 🔥 OPTIMIZED HEADERS
     const headers = new Headers({
       'Content-Type': 'application/octet-stream',
       'Content-Length': contentLength.toString(),
@@ -55,23 +59,22 @@ export async function GET(request: NextRequest) {
       'Pragma': 'no-cache',
       'Expires': '0',
       'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no', // Disable nginx buffering
+      'X-Accel-Buffering': 'no',
     });
 
     if (rangeHeader) {
       headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
     }
 
-    console.log(`🚀 INSTANT STREAMING: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB)`);
+    console.log(`🚀 STREAMING: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB) - Range: ${start}-${end}`);
 
-    // 🔥 RETURN DIRECT STREAM - NO WRAPPER NEEDED
     return new Response(stream as any, {
       status: rangeHeader ? 206 : 200,
       headers: headers,
     });
 
   } catch (error: any) {
-    console.error("Streaming error:", error);
+    console.error("❌ Streaming error:", error);
     return new Response("Download failed", { status: 500 });
   }
 }
