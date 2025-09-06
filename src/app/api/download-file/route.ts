@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createReadStream, promises as fs } from "fs";
+import { createReadStream, statSync, existsSync } from "fs";
 import path from "path";
 
 export async function GET(request: NextRequest) {
@@ -8,44 +8,86 @@ export async function GET(request: NextRequest) {
     const filename = searchParams.get("filename");
 
     if (!filename) {
-      return new NextResponse("Filename parameter missing", { status: 400 });
+      return NextResponse.json({ error: "Filename is required" }, { status: 400 });
     }
 
     const filePath = path.join(process.cwd(), "public", "downloads", filename);
 
-    // Check if file exists
-    try {
-      await fs.access(filePath);
-    } catch {
-      return new NextResponse("File not found", { status: 404 });
+    if (!existsSync(filePath)) {
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    // Get file stats
-    const stats = await fs.stat(filePath);
+    const stat = statSync(filePath);
+    const fileSize = stat.size;
 
-    // Create read stream
-    const fileStream = createReadStream(filePath);
+    // 🔥 HANDLE RANGE REQUESTS (Resume support + faster downloads)
+    const range = request.headers.get('range');
+    let start = 0;
+    let end = fileSize - 1;
 
-    // Set proper headers for browser download
-    const headers = new Headers();
-    headers.set("Content-Type", "application/octet-stream");
-    headers.set("Content-Length", stats.size.toString());
-    headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-    headers.set("Cache-Control", "no-cache");
+    if (range) {
+      const parts = range.replace(/bytes=/, "").split("-");
+      start = parseInt(parts[0], 10);
+      end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    }
 
-    // Delete file after streaming starts
-    fileStream.on("end", async () => {
-      try {
-        await fs.unlink(filePath);
-        console.log(`File deleted from server: ${filename}`);
-      } catch (err) {
-        console.error("Failed to delete file:", err);
+    const chunkSize = (end - start) + 1;
+    
+    // 🔥 OPTIMIZED STREAMING WITH LARGE CHUNKS
+    const stream = createReadStream(filePath, { 
+      start, 
+      end,
+      highWaterMark: 256 * 1024 // 256KB chunks for maximum speed
+    });
+
+    // 🔥 PERFORMANCE HEADERS
+    const headers = new Headers({
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': chunkSize.toString(),
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'no-cache, no-store',
+      'Connection': 'keep-alive',
+      'Keep-Alive': 'timeout=5, max=1000',
+    });
+
+    // Add range headers if partial content
+    if (range) {
+      headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+    }
+
+    // 🔥 SUPER FAST STREAMING
+    const readableStream = new ReadableStream({
+      start(controller) {
+        stream.on('data', (chunk) => {
+          controller.enqueue(chunk);
+        });
+        
+        stream.on('end', async () => {
+          controller.close();
+          // Delete file after streaming completes
+          try {
+            await import('fs').then(fs => fs.promises.unlink(filePath));
+            console.log(`File deleted: ${filename}`);
+          } catch (err) {
+            console.error("Delete failed:", err);
+          }
+        });
+        
+        stream.on('error', (error) => {
+          console.error('Stream error:', error);
+          controller.error(error);
+        });
       }
     });
 
-    return new NextResponse(fileStream as any, { headers });
+    return new Response(readableStream, {
+      status: range ? 206 : 200, // Partial Content or OK
+      headers: headers,
+    });
+
   } catch (error: any) {
-    console.error("Download file error:", error);
-    return new NextResponse("Download failed", { status: 500 });
+    console.error("Download error:", error);
+    return NextResponse.json({ error: "Download failed" }, { status: 500 });
   }
 }
