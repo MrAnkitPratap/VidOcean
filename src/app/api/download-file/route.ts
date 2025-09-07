@@ -202,7 +202,6 @@
 //   }
 // }
 
-
 // app/api/download/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createReadStream, statSync, existsSync, unlinkSync } from "fs";
@@ -226,7 +225,7 @@ export async function GET(request: NextRequest) {
     const stat = statSync(filePath);
     const fileSize = stat.size;
 
-    // 🔥 ENHANCED RANGE SUPPORT
+    // 🔥 RANGE SUPPORT FOR RESUME
     let start = 0;
     let end = fileSize - 1;
     
@@ -237,31 +236,27 @@ export async function GET(request: NextRequest) {
       end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
     }
 
-    // Validate range
     if (start >= fileSize || end >= fileSize || start > end) {
       return new Response("Range not satisfiable", { status: 416 });
     }
 
     const contentLength = end - start + 1;
 
-    // 🚀 ULTRA-FAST 4MB CHUNKS FOR MAXIMUM SPEED
+    // 🚀 OPTIMIZED STREAM - Smaller chunks for better progress updates
     const stream = createReadStream(filePath, {
       start,
       end,
-      highWaterMark: 4 * 1024 * 1024, // 4MB chunks for ultra-speed
+      highWaterMark: 2 * 1024 * 1024, // 2MB chunks - balance between speed and progress updates
       flags: 'r',
       autoClose: true
     });
 
-    // 🗑️ SMART AUTO-DELETE
-    let downloadStarted = false;
-    
+    // 🗑️ PROPER AUTO-DELETE
     stream.on('open', () => {
-      downloadStarted = true;
-      console.log(`🚀 ULTRA-SPEED Download: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB)`);
+      console.log(`🚀 Download started: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB)`);
       
-      // Conservative delete timing based on file size
-      const estimatedSeconds = Math.max(60, Math.min(600, fileSize / (1024 * 1024) * 3)); // 3 seconds per MB, min 1min, max 10min
+      // More conservative deletion timing
+      const estimatedSeconds = Math.max(120, Math.min(1800, fileSize / (1024 * 1024) * 5)); // 5 seconds per MB, min 2min, max 30min
       
       setTimeout(() => {
         try {
@@ -275,8 +270,10 @@ export async function GET(request: NextRequest) {
       }, estimatedSeconds * 1000);
     });
 
+    // Handle stream errors
     stream.on('error', (err) => {
       console.error("Stream error:", err);
+      // Delete on error after 30 seconds
       setTimeout(() => {
         try {
           if (existsSync(filePath)) {
@@ -286,55 +283,32 @@ export async function GET(request: NextRequest) {
         } catch (deleteErr) {
           console.error('Cleanup error:', deleteErr);
         }
-      }, 10000);
+      }, 30000);
     });
 
-    // 🔥 CRITICAL HEADERS FOR NATIVE BROWSER PROGRESS
+    // 🔥 PERFECT HEADERS FOR BROWSER PROGRESS
     const headers = new Headers({
-      // 📦 ESSENTIAL FILE HEADERS
       'Content-Type': 'application/octet-stream',
-      'Content-Length': fileSize.toString(), // 🚨 MUST BE FULL FILE SIZE for progress
       'Content-Disposition': `attachment; filename="${filename}"`,
-      
-      // 🚀 CRITICAL FOR BROWSER PROGRESS BAR
       'Accept-Ranges': 'bytes',
-      'Content-Transfer-Encoding': 'binary',
-      
-      // 📊 BROWSER COMPATIBILITY HEADERS
-      'Cache-Control': 'no-cache, must-revalidate',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
-      'Expires': 'Thu, 01 Jan 1970 00:00:00 GMT',
-      
-      // 🔄 CONNECTION OPTIMIZATION
+      'Expires': '0',
       'Connection': 'keep-alive',
-      'Keep-Alive': 'timeout=300, max=1000',
-      
-      // 🎯 SECURITY & COMPATIBILITY
       'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'DENY',
-      'X-XSS-Protection': '1; mode=block',
-      
-      // 🚀 NGINX/SERVER OPTIMIZATION
-      'X-Accel-Buffering': 'no',
-      'X-Sendfile-Type': 'X-Accel-Redirect',
-      
-      // 📅 FILE METADATA FOR RESUME
       'Last-Modified': stat.mtime.toUTCString(),
-      'ETag': `W/"${stat.size.toString(16)}-${stat.mtime.getTime().toString(16)}"`,
-      
-      // 🔥 ULTRA-SPEED HEADERS
-      'Transfer-Encoding': 'chunked',
-      'Vary': 'Accept-Encoding',
+      'ETag': `"${stat.size}-${stat.mtime.getTime()}"`,
     });
 
-    // 🚨 IMPORTANT: Remove Content-Length for partial requests
+    // 🚨 CRITICAL: Proper Content-Length handling
     if (rangeHeader) {
-      headers.delete('Content-Length');
       headers.set('Content-Length', contentLength.toString());
       headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+    } else {
+      headers.set('Content-Length', fileSize.toString());
     }
 
-    console.log(`🚀 ULTRA-STREAMING: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB) | Chunks: 4MB | Range: ${start}-${end}`);
+    console.log(`🚀 STREAMING: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB) - Range: ${start}-${end}`);
 
     return new Response(stream as any, {
       status: rangeHeader ? 206 : 200,
