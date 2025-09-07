@@ -1,70 +1,72 @@
 
 
-import { NextRequest, NextResponse } from "next/server";
-import { createReadStream, promises as fs } from "fs";
-import path from "path";
+// import { NextRequest, NextResponse } from "next/server";
+// import { createReadStream, promises as fs } from "fs";
+// import path from "path";
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const filename = searchParams.get("filename");
+// export async function GET(request: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(request.url);
+//     const filename = searchParams.get("filename");
 
-    if (!filename) {
-      return new NextResponse("Filename parameter missing", { status: 400 });
-    }
+//     if (!filename) {
+//       return new NextResponse("Filename parameter missing", { status: 400 });
+//     }
 
-    const filePath = path.join(process.cwd(), "public", "downloads", filename);
+//     const filePath = path.join(process.cwd(), "public", "downloads", filename);
 
-    // Check if file exists
-    try {
-      await fs.access(filePath);
-    } catch {
-      return new NextResponse("File not found", { status: 404 });
-    }
+//     // Check if file exists
+//     try {
+//       await fs.access(filePath);
+//     } catch {
+//       return new NextResponse("File not found", { status: 404 });
+//     }
 
-    // Get file stats
-    const stats = await fs.stat(filePath);
+//     // Get file stats
+//     const stats = await fs.stat(filePath);
 
-    // Create read stream
-    const fileStream = createReadStream(filePath);
+//     // Create read stream
+//     const fileStream = createReadStream(filePath);
 
-    // 🔧 Set proper headers for browser download
-    const headers = new Headers();
-    headers.set("Content-Type", "application/octet-stream");
-    headers.set("Content-Length", stats.size.toString());
-    headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-    headers.set("Cache-Control", "no-cache");
+//     // 🔧 Set proper headers for browser download
+//     const headers = new Headers();
+//     headers.set("Content-Type", "application/octet-stream");
+//     headers.set("Content-Length", stats.size.toString());
+//     headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+//     headers.set("Cache-Control", "no-cache");
 
-    // 🚀 Delete file after streaming starts
-    fileStream.on("open", () => {
-      console.log(`Streaming file: ${filename}`);
-    });
+//     // 🚀 Delete file after streaming starts
+//     fileStream.on("open", () => {
+//       console.log(`Streaming file: ${filename}`);
+//     });
 
-    fileStream.on("end", async () => {
-      try {
-        await fs.unlink(filePath);
-        console.log(`File deleted from server: ${filename}`);
-      } catch (err) {
-        console.error("Failed to delete file:", err);
-      }
-    });
+//     fileStream.on("end", async () => {
+//       try {
+//         await fs.unlink(filePath);
+//         console.log(`File deleted from server: ${filename}`);
+//       } catch (err) {
+//         console.error("Failed to delete file:", err);
+//       }
+//     });
 
-    fileStream.on("error", async (err) => {
-      console.error("Stream error:", err);
-      try {
-        await fs.unlink(filePath);
-      } catch (deleteErr) {
-        console.error("Failed to delete file after error:", deleteErr);
-      }
-    });
+//     fileStream.on("error", async (err) => {
+//       console.error("Stream error:", err);
+//       try {
+//         await fs.unlink(filePath);
+//       } catch (deleteErr) {
+//         console.error("Failed to delete file after error:", deleteErr);
+//       }
+//     });
 
-    // 🌊 Return file stream as response
-    return new NextResponse(fileStream as any, { headers });
-  } catch (error: any) {
-    console.error("Download file error:", error);
-    return new NextResponse("Download failed", { status: 500 });
-  }
-}
+//     // 🌊 Return file stream as response
+//     return new NextResponse(fileStream as any, { headers });
+//   } catch (error: any) {
+//     console.error("Download file error:", error);
+//     return new NextResponse("Download failed", { status: 500 });
+//   }
+// }
+
+
 
 // // app/api/download/route.ts
 // import { NextRequest, NextResponse } from "next/server";
@@ -306,3 +308,135 @@ export async function GET(request: NextRequest) {
 //     return new Response("Download failed", { status: 500 });
 //   }
 // }
+
+
+import { NextRequest, NextResponse } from "next/server";
+import { createReadStream, promises as fs } from "fs";
+import path from "path";
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const filename = searchParams.get("filename");
+
+    if (!filename) {
+      return new NextResponse("Filename parameter missing", { status: 400 });
+    }
+
+    const filePath = path.join(process.cwd(), "public", "downloads", filename);
+
+    // Check if file exists
+    try {
+      await fs.access(filePath);
+    } catch {
+      return new NextResponse("File not found", { status: 404 });
+    }
+
+    // Get file stats
+    const stats = await fs.stat(filePath);
+    const fileSize = stats.size;
+
+    // 🔥 Handle Range Requests for Resume/Pause functionality
+    const rangeHeader = request.headers.get("range");
+    
+    if (rangeHeader) {
+      // Parse range header
+      const parts = rangeHeader.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunkSize = (end - start) + 1;
+
+      // Create partial stream
+      const fileStream = createReadStream(filePath, { start, end });
+
+      // Set partial content headers
+      const headers = new Headers();
+      headers.set("Content-Range", `bytes ${start}-${end}/${fileSize}`);
+      headers.set("Accept-Ranges", "bytes");
+      headers.set("Content-Length", chunkSize.toString());
+      headers.set("Content-Type", "application/octet-stream");
+      headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+      headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      headers.set("Pragma", "no-cache");
+      headers.set("Expires", "0");
+
+      console.log(`Resuming download: ${filename} (${start}-${end}/${fileSize})`);
+
+      // 🗑️ Schedule file deletion after complete download
+      if (end === fileSize - 1) {
+        scheduleFileDeletion(filePath, filename);
+      }
+
+      return new NextResponse(fileStream as any, { 
+        status: 206, // Partial Content
+        headers 
+      });
+    } else {
+      // 🚀 Full file download with optimized headers
+      const fileStream = createReadStream(filePath, {
+        highWaterMark: 64 * 1024 // 64KB chunks for better performance
+      });
+
+      const headers = new Headers();
+      headers.set("Content-Type", "application/octet-stream");
+      headers.set("Content-Length", fileSize.toString());
+      headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+      headers.set("Accept-Ranges", "bytes"); // Enable resume support
+      headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      headers.set("Pragma", "no-cache");
+      headers.set("Expires", "0");
+      
+      // 🔧 Performance optimization headers
+      headers.set("Connection", "keep-alive");
+      headers.set("Keep-Alive", "timeout=5, max=1000");
+
+      console.log(`Starting full download: ${filename} (${fileSize} bytes)`);
+
+      // 🗑️ Schedule file deletion after download completes
+      scheduleFileDeletion(filePath, filename);
+
+      return new NextResponse(fileStream as any, { headers });
+    }
+  } catch (error: any) {
+    console.error("Download file error:", error);
+    return new NextResponse("Download failed", { status: 500 });
+  }
+}
+
+// 🕒 File deletion scheduler - deletes after download is likely complete
+function scheduleFileDeletion(filePath: string, filename: string) {
+  // Delete file after 30 seconds (enough time for browser to complete download)
+  setTimeout(async () => {
+    try {
+      await fs.access(filePath);
+      await fs.unlink(filePath);
+      console.log(`✅ File deleted from server: ${filename}`);
+    } catch (err) {
+      // File already deleted or doesn't exist
+      console.log(`File already removed: ${filename}`);
+    }
+  }, 30000); // 30 seconds delay
+}
+
+// 🧹 Alternative: More intelligent file cleanup
+export async function cleanupOldFiles() {
+  const downloadDir = path.join(process.cwd(), "public", "downloads");
+  
+  try {
+    const files = await fs.readdir(downloadDir);
+    const now = Date.now();
+    
+    for (const file of files) {
+      const filePath = path.join(downloadDir, file);
+      const stats = await fs.stat(filePath);
+      
+      // Delete files older than 5 minutes
+      if (now - stats.mtime.getTime() > 5 * 60 * 1000) {
+        await fs.unlink(filePath);
+        console.log(`🗑️ Cleaned up old file: ${file}`);
+      }
+    }
+  } catch (error) {
+    console.error("Cleanup error:", error);
+  }
+}
