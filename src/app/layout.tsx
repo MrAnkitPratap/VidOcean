@@ -1,8 +1,8 @@
 // app/layout.tsx
 import "./globals.css";
 import { Navbar } from "./components/navbar";
-import type { Viewport } from 'next';
 
+// ✅ CLEAN METADATA - NO VIEWPORT HERE
 export const metadata = {
   title: "vidocean - Universal Video Downloader | Download from 1000+ Websites",
   description: "Download videos from YouTube, Instagram, TikTok, Facebook, Twitter and 1000+ platforms with vidocean. Fast, reliable downloads with real-time progress.",
@@ -33,8 +33,8 @@ export const metadata = {
   },
 };
 
-// 🔥 PROPER VIEWPORT EXPORT FOR NEXT.JS 14+
-export const viewport: Viewport = {
+// 🔥 SEPARATE VIEWPORT EXPORT
+export const viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: '#0891b2',
@@ -47,14 +47,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-        <link rel="manifest" href="/site.webmanifest" />
-        <meta name="msapplication-TileColor" content="#0891b2" />
-      </head>
       <body>
         <div className="ocean-background">
           <div className="underwater-light"></div>
