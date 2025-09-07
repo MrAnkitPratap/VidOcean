@@ -202,143 +202,107 @@
 //   }
 // }
 
-
 // app/api/download/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createReadStream, statSync, existsSync, unlinkSync } from "fs";
 import path from "path";
+
+// Per-file delayed deletion scheduler
+const deleteTimers = new Map<string, NodeJS.Timeout>();
+const DELETE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const filename = searchParams.get("filename");
-
-    if (!filename) {
-      return new Response("Filename parameter missing", { status: 400 });
-    }
+    if (!filename) return new Response("Filename parameter missing", { status: 400 });
 
     const filePath = path.join(process.cwd(), "public", "downloads", filename);
+    if (!existsSync(filePath)) return new Response("File not found", { status: 404 });
 
-    if (!existsSync(filePath)) {
-      return new Response("File not found", { status: 404 });
-    }
+    const st = statSync(filePath);
+    const fileSize = st.size;
 
-    const stat = statSync(filePath);
-    const fileSize = stat.size;
+    // Stable validators for resume
+    const eTag = `"${fileSize.toString(16)}-${st.mtimeMs.toString(16)}"`;
+    const lastModified = st.mtime.toUTCString();
 
-    // 🔥 RANGE SUPPORT FOR BROWSER PROGRESS
+    // Cancel any pending deletion while serving again (enables resume)
+    const t = deleteTimers.get(filePath);
+    if (t) clearTimeout(t);
+
+    // Parse Range
     let start = 0;
     let end = fileSize - 1;
-    
-    const rangeHeader = request.headers.get("range");
+    const rangeHeader = request.headers.get("range") || request.headers.get("Range");
     if (rangeHeader) {
-      const parts = rangeHeader.replace(/bytes=/, "").split("-");
-      start = parseInt(parts[0], 10);
-      end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
+      if (m) {
+        if (m[1] !== "") start = Math.min(parseInt(m[1], 10), fileSize - 1);
+        if (m[22] !== "") end = Math.min(parseInt(m[22], 10), fileSize - 1);
+      }
+    }
+    if (start > end || start < 0 || end >= fileSize) {
+      return new Response("Range not satisfiable", { status: 416, headers: { "Content-Range": `bytes */${fileSize}` } });
     }
 
-    // Validate range
-    if (start >= fileSize || end >= fileSize || start > end) {
-      return new Response("Range not satisfiable", { status: 416 });
-    }
+    // If-Range handling: if validator mismatches, ignore range and send full 200
+    const ifRange = request.headers.get("if-range");
+    const useRange =
+      !ifRange ||
+      ifRange === eTag ||
+      ifRange === lastModified; // only honor range if validators match
 
-    const contentLength = end - start + 1;
+    const isPartial = !!rangeHeader && useRange && (start !== 0 || end !== fileSize - 1);
+    const contentLength = isPartial ? (end - start + 1) : fileSize;
 
-    // 🚀 ULTRA-FAST STREAM - 8MB chunks for maximum speed
+    // High throughput stream: 8–16MB chunk
     const stream = createReadStream(filePath, {
-      start,
-      end,
-      highWaterMark: 8 * 1024 * 1024, // 8MB chunks instead of 1MB
-      flags: 'r',
-      autoClose: true
+      start: isPartial ? start : 0,
+      end: isPartial ? end : fileSize - 1,
+      highWaterMark: 8 * 1024 * 1024, // 8MB; bump to 16MB if NIC is very fast
+      flags: "r",
+      autoClose: true,
     });
 
-    // 🗑️ AUTO-DELETE AFTER DOWNLOAD
-    let downloadStarted = false;
-    
-    stream.on('open', () => {
-      downloadStarted = true;
-      console.log(`🚀 ULTRA-FAST Download: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB)`);
-      
-      // More conservative delete timing for safety
-      const estimatedSeconds = Math.max(60, Math.min(600, fileSize / (1024 * 1024) * 5)); // 5 seconds per MB, min 1min, max 10min
-      
-      setTimeout(() => {
+    // Schedule safe delayed deletion after stream closes
+    stream.on("close", () => {
+      const timer = setTimeout(() => {
         try {
-          if (existsSync(filePath)) {
-            unlinkSync(filePath);
-            console.log(`🗑️ Auto-deleted: ${filename} after ${estimatedSeconds}s`);
-          }
-        } catch (err) {
-          console.error('Delete error:', err);
-        }
-      }, estimatedSeconds * 1000);
+          if (existsSync(filePath)) unlinkSync(filePath);
+        } catch {}
+      }, DELETE_TTL_MS);
+      deleteTimers.set(filePath, timer);
     });
 
-    // Error cleanup
-    stream.on('error', (err) => {
-      console.error("Stream error:", err);
-      setTimeout(() => {
+    stream.on("error", () => {
+      // On error, still schedule cleanup (shorter delay to free space but not immediate)
+      const timer = setTimeout(() => {
         try {
-          if (existsSync(filePath)) {
-            unlinkSync(filePath);
-            console.log(`🗑️ Error cleanup: ${filename}`);
-          }
-        } catch (deleteErr) {
-          console.error('Cleanup error:', deleteErr);
-        }
-      }, 10000);
+          if (existsSync(filePath)) unlinkSync(filePath);
+        } catch {}
+      }, 5 * 60 * 1000);
+      deleteTimers.set(filePath, timer);
     });
 
-    // 🔥 SPEED-OPTIMIZED HEADERS FOR BROWSER PROGRESS
-    const headers = new Headers({
-      // 📦 Basic file headers
-      'Content-Type': 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      
-      // 🚀 ESSENTIAL FOR BROWSER PROGRESS & SPEED
-      'Accept-Ranges': 'bytes',
-      'Content-Transfer-Encoding': 'binary',
-      
-      // 📊 OPTIMIZED CACHE HEADERS
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      
-      // 🔄 HIGH-PERFORMANCE CONNECTION
-      'Connection': 'keep-alive',
-      'Keep-Alive': 'timeout=300, max=1000', // Longer timeout for big files
-      
-      // 🎯 BROWSER COMPATIBILITY
-      'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'DENY',
-      
-      // 🚀 SERVER OPTIMIZATION
-      'X-Accel-Buffering': 'no',
-      'Vary': 'Accept-Encoding',
-      
-      // 📅 RESUME SUPPORT
-      'Last-Modified': stat.mtime.toUTCString(),
-      'ETag': `"${stat.size}-${stat.mtime.getTime()}"`,
-    });
-
-    // 🚨 CRITICAL: Proper Content-Length for progress calculation
-    if (rangeHeader) {
-      headers.set('Content-Length', contentLength.toString());
-      headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
-    } else {
-      headers.set('Content-Length', fileSize.toString());
-    }
-
-    console.log(`🚀 ULTRA-STREAMING: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB) | 8MB chunks | Range: ${start}-${end}`);
+    const headers = new Headers();
+    headers.set("Content-Type", "application/octet-stream");
+    headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+    headers.set("Accept-Ranges", "bytes");
+    headers.set("Cache-Control", "no-store, max-age=0");
+    headers.set("ETag", eTag);
+    headers.set("Last-Modified", lastModified);
+    headers.set("Connection", "keep-alive");
+    headers.set("X-Content-Type-Options", "nosniff");
+    // Progress-critical lengths
+    headers.set("Content-Length", contentLength.toString());
+    if (isPartial) headers.set("Content-Range", `bytes ${start}-${end}/${fileSize}`);
 
     return new Response(stream as any, {
-      status: rangeHeader ? 206 : 200,
-      headers: headers,
+      status: isPartial ? 206 : 200,
+      headers,
     });
-
-  } catch (error: any) {
-    console.error("❌ Download error:", error);
+  } catch (e: any) {
     return new Response("Download failed", { status: 500 });
   }
 }
