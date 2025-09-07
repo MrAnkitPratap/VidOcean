@@ -201,8 +201,10 @@
 //     return new Response("Download failed", { status: 500 });
 //   }
 // }
+
+
 // app/api/download/route.ts
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createReadStream, statSync, existsSync, unlinkSync } from "fs";
 import path from "path";
 
@@ -224,7 +226,7 @@ export async function GET(request: NextRequest) {
     const stat = statSync(filePath);
     const fileSize = stat.size;
 
-    // 🔥 ENHANCED RANGE SUPPORT
+    // 🔥 RANGE SUPPORT FOR BROWSER PROGRESS
     let start = 0;
     let end = fileSize - 1;
     
@@ -235,42 +237,45 @@ export async function GET(request: NextRequest) {
       end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
     }
 
+    // Validate range
     if (start >= fileSize || end >= fileSize || start > end) {
       return new Response("Range not satisfiable", { status: 416 });
     }
 
     const contentLength = end - start + 1;
 
-    // 🚀 ULTRA-HIGH PERFORMANCE STREAM - 16MB chunks for maximum speed
+    // 🚀 ULTRA-FAST STREAM - 8MB chunks for maximum speed
     const stream = createReadStream(filePath, {
       start,
       end,
-      highWaterMark: 16 * 1024 * 1024, // 16MB chunks for ultra speed
+      highWaterMark: 8 * 1024 * 1024, // 8MB chunks instead of 1MB
       flags: 'r',
-      autoClose: true,
-      emitClose: true
+      autoClose: true
     });
 
-    // 🗑️ SMART AUTO-DELETE
+    // 🗑️ AUTO-DELETE AFTER DOWNLOAD
+    let downloadStarted = false;
+    
     stream.on('open', () => {
-      console.log(`🚀 ULTRA-SPEED Download: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB)`);
+      downloadStarted = true;
+      console.log(`🚀 ULTRA-FAST Download: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB)`);
       
-      // Very conservative deletion - 15 seconds per MB, minimum 10 minutes
-      const deleteTime = Math.max(600000, fileSize / (1024 * 1024) * 15000); 
+      // More conservative delete timing for safety
+      const estimatedSeconds = Math.max(60, Math.min(600, fileSize / (1024 * 1024) * 5)); // 5 seconds per MB, min 1min, max 10min
       
       setTimeout(() => {
         try {
           if (existsSync(filePath)) {
             unlinkSync(filePath);
-            console.log(`🗑️ Auto-deleted: ${filename} after ${Math.round(deleteTime/1000)}s`);
+            console.log(`🗑️ Auto-deleted: ${filename} after ${estimatedSeconds}s`);
           }
         } catch (err) {
           console.error('Delete error:', err);
         }
-      }, deleteTime);
+      }, estimatedSeconds * 1000);
     });
 
-    // Error handling
+    // Error cleanup
     stream.on('error', (err) => {
       console.error("Stream error:", err);
       setTimeout(() => {
@@ -279,43 +284,45 @@ export async function GET(request: NextRequest) {
             unlinkSync(filePath);
             console.log(`🗑️ Error cleanup: ${filename}`);
           }
-        } catch {}
-      }, 60000);
+        } catch (deleteErr) {
+          console.error('Cleanup error:', deleteErr);
+        }
+      }, 10000);
     });
 
-    // 🔥 OPTIMIZED HEADERS FOR BROWSER NATIVE PROGRESS
-    const headers = new Headers();
-    
-    // 📦 Essential file headers
-    headers.set('Content-Type', 'application/octet-stream');
-    headers.set('Content-Disposition', `attachment; filename="${filename}"`);
-    
-    // 🚀 CRITICAL PROGRESS HEADERS
-    headers.set('Accept-Ranges', 'bytes');
-    headers.set('Content-Transfer-Encoding', 'binary');
-    
-    // 📊 CACHE CONTROL
-    headers.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    headers.set('Pragma', 'no-cache');
-    headers.set('Expires', '-1');
-    
-    // 🔄 CONNECTION OPTIMIZATION
-    headers.set('Connection', 'keep-alive');
-    headers.set('Keep-Alive', 'timeout=600, max=1000');
-    
-    // 🎯 BROWSER COMPATIBILITY
-    headers.set('X-Content-Type-Options', 'nosniff');
-    headers.set('X-Frame-Options', 'DENY');
-    
-    // 📅 RESUME SUPPORT
-    headers.set('Last-Modified', stat.mtime.toUTCString());
-    headers.set('ETag', `"${stat.size.toString(16)}-${stat.mtime.getTime().toString(16)}"`);
-    
-    // 🚀 PERFORMANCE HEADERS
-    headers.set('X-Accel-Buffering', 'no');
-    headers.set('Vary', 'Accept-Encoding');
+    // 🔥 SPEED-OPTIMIZED HEADERS FOR BROWSER PROGRESS
+    const headers = new Headers({
+      // 📦 Basic file headers
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      
+      // 🚀 ESSENTIAL FOR BROWSER PROGRESS & SPEED
+      'Accept-Ranges': 'bytes',
+      'Content-Transfer-Encoding': 'binary',
+      
+      // 📊 OPTIMIZED CACHE HEADERS
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      
+      // 🔄 HIGH-PERFORMANCE CONNECTION
+      'Connection': 'keep-alive',
+      'Keep-Alive': 'timeout=300, max=1000', // Longer timeout for big files
+      
+      // 🎯 BROWSER COMPATIBILITY
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      
+      // 🚀 SERVER OPTIMIZATION
+      'X-Accel-Buffering': 'no',
+      'Vary': 'Accept-Encoding',
+      
+      // 📅 RESUME SUPPORT
+      'Last-Modified': stat.mtime.toUTCString(),
+      'ETag': `"${stat.size}-${stat.mtime.getTime()}"`,
+    });
 
-    // 🚨 CRITICAL: Content-Length based on request type
+    // 🚨 CRITICAL: Proper Content-Length for progress calculation
     if (rangeHeader) {
       headers.set('Content-Length', contentLength.toString());
       headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
@@ -323,7 +330,7 @@ export async function GET(request: NextRequest) {
       headers.set('Content-Length', fileSize.toString());
     }
 
-    console.log(`🚀 ULTRA-STREAM: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB) | 16MB chunks | Range: ${start}-${end}`);
+    console.log(`🚀 ULTRA-STREAMING: ${filename} (${(fileSize/1024/1024).toFixed(1)}MB) | 8MB chunks | Range: ${start}-${end}`);
 
     return new Response(stream as any, {
       status: rangeHeader ? 206 : 200,
