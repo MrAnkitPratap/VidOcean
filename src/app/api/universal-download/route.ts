@@ -449,31 +449,57 @@ export async function POST(request: NextRequest) {
         url,
       ];
     } else if (detectedPlatform === 'instagram') {
-      ytdlpArgs = [
-        "-f", "best[ext=mp4]/best",
-        "-o", outputTemplate,
-        
-        "--quiet",
-        "--no-warnings",
-        
-        "--concurrent-fragments", "4",
-        "--fragment-retries", "3",
-        "--http-chunk-size", "5242880",
-        "--buffer-size", "32768",
-        
-        "--no-check-certificate",
-        "--no-part",
-        "--no-continue",
-        "--no-playlist",
-        "--user-agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
-        "--add-header", "Referer:https://www.instagram.com/",
-        "--retries", "3",
-        "--socket-timeout", "30",
-        "--progress",
-        "--newline",
-        url,
-      ];
-    } else if (detectedPlatform === 'youtube') {
+  // 🔥 INSTAGRAM WITHOUT COOKIES WORKAROUND
+  ytdlpArgs = [
+    "-f", "best[ext=mp4]/best",
+    "-o", outputTemplate,
+    
+    "--quiet",
+    "--no-warnings",
+    
+    // 🚨 INSTAGRAM ANTI-BOT HEADERS (No cookies needed)
+    "--user-agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "--add-header", "Accept-Language:en-US,en;q=0.5",
+    "--add-header", "Accept-Encoding:gzip, deflate, br",
+    "--add-header", "DNT:1",
+    "--add-header", "Connection:keep-alive",
+    "--add-header", "Upgrade-Insecure-Requests:1",
+    "--add-header", "Sec-Fetch-Dest:document",
+    "--add-header", "Sec-Fetch-Mode:navigate",
+    "--add-header", "Sec-Fetch-Site:none",
+    "--add-header", "Sec-GPC:1",
+    
+    // 🔄 RATE LIMITING & RETRY STRATEGY
+    "--sleep-interval", "5",         // 5 second delay between requests
+    "--max-sleep-interval", "15",    // Max 15 second delay
+    "--retries", "8",                // More retries
+    "--fragment-retries", "5",       // Fragment retries
+    "--extractor-retries", "3",      // Extractor retries
+    "--socket-timeout", "120",       // 2 minute timeout
+    
+    // 🎭 STEALTH MODE SETTINGS
+    "--no-check-certificate",
+    "--no-part",
+    "--no-continue",
+    "--no-playlist",
+    "--geo-bypass",
+    "--age-limit", "100",           // Bypass age restrictions
+    
+    // 🚀 PERFORMANCE (Conservative for Instagram)
+    "--concurrent-fragments", "1",   // Single thread to avoid detection
+    "--http-chunk-size", "1048576", // 1MB chunks
+    "--buffer-size", "8192",        // Small buffer
+    
+    // 📱 MOBILE EXTRACTION FALLBACK
+    "--extractor-args", "instagram:api_version=v1",
+    
+    "--progress",
+    "--newline",
+    url,
+  ];
+    }
+    else if (detectedPlatform === 'youtube') {
       const formatString = formatId && formatId !== "auto" 
         ? `${formatId}+bestaudio/${formatId}/best[height<=720]`
         : "best[height<=720]/best";
