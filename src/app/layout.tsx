@@ -7,14 +7,21 @@ export const metadata = {
   title: "vidocean - Universal Video Downloader | Download from 1000+ Websites",
   description: "Download videos from YouTube, Instagram, TikTok, Facebook, Twitter and 1000+ platforms with vidocean. Fast, reliable downloads with real-time progress.",
   keywords: "vidocean, video downloader, YouTube downloader, Instagram video download, TikTok downloader, Facebook video downloader, universal video downloader",
+  
+  // 🔥 FAVICON - Browser tab icon के लिए
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icon.png", sizes: "192x192" }
+    ],
+    shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
+  
   openGraph: {
     title: "vidocean - Universal Video Downloader",
     description: "Download videos from 1000+ platforms with format selection and real-time progress.",
-    url: "https://videoscan.xyz",
+    url: "https://vidocean.xyz", // ⚠️ videoscan.xyz fix किया
     siteName: "vidocean",
     type: "website",
     images: [
@@ -75,3 +82,4 @@ export default function RootLayout({
     </html>
   );
 }
+

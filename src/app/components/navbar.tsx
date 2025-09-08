@@ -16,6 +16,9 @@ import {
   Waves,
   ChevronDown,
   Music,
+  Shield,
+  FileText,
+  BookOpen,
 } from "lucide-react";
 
 export function Navbar() {
@@ -31,8 +34,12 @@ export function Navbar() {
     { icon: Music, label: "TikTok", href: "/tiktok" },
   ];
 
+  // 🔥 UPDATED MENU ITEMS - Added privacy, terms, guide
   const menuItems = [
-    { icon: Info, label: "About", href: "/about" },
+    { icon: BookOpen, label: "How to Use", href: "/guide", desc: "Complete guide to download videos" },
+    { icon: Info, label: "About", href: "/about", desc: "Learn more about vidocean" },
+    { icon: Shield, label: "Privacy Policy", href: "/privacy", desc: "How we protect your data" },
+    { icon: FileText, label: "Terms of Service", href: "/terms", desc: "Terms and conditions" },
   ];
 
   const isActive = (href: string) => pathname === href;
@@ -48,13 +55,22 @@ export function Navbar() {
               href="/"
               className="flex items-center space-x-3 whitespace-nowrap group"
             >
-              <div className="relative">
-                <Waves size={28} className="text-cyan-400 group-hover:text-cyan-300 transition-all duration-300 animate-pulse" />
-                <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-lg group-hover:bg-cyan-300/30 transition-all duration-300"></div>
-              </div>
-              <span className="text-white font-bold text-xl bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:to-blue-300 transition-all duration-300">
-                vidocean
-              </span>
+            <div className="flex items-center space-x-3">
+                  {/* Logo with glow effect */}
+                  <div className="relative w-7 h-7 sm:w-9 sm:h-9">
+                    <img
+                      src="/favicon.ico"
+                      alt="VidOcean Logo"
+                      className="object-contain w-full h-full rounded-full"
+                     />
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 opacity-30 blur-md"></div>
+                  </div>
+
+                  {/* Brand name with matching gradient */}
+                  <span className="text-xl sm:text-2xl font-extrabold  bg-gradient-to-r from-cyan-400 via-blue-400 to-blue-500 bg-clip-text text-transparent select-none tracking-wide">
+                    VidOcean
+                  </span>
+                </div>
             </Link>
 
             {/* Main Navigation */}
@@ -75,22 +91,59 @@ export function Navbar() {
               ))}
             </div>
 
-            {/* Secondary Navigation */}
-            <div className="flex space-x-4">
-              {menuItems.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`transition-all duration-300 flex items-center space-x-2 hover:scale-105 px-4 py-2 rounded-lg ${
-                    isActive(item.href)
-                      ? "text-cyan-400 bg-cyan-400/20 border border-cyan-400/40 shadow-lg shadow-cyan-400/20"
-                      : "text-blue-200 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/20"
+            {/* Secondary Navigation - Updated with new items */}
+            <div className="relative">
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className={`transition-all duration-300 flex items-center space-x-2 hover:scale-105 px-4 py-2 rounded-lg ${
+                  isDropdownOpen || menuItems.some((item) => isActive(item.href))
+                    ? "text-cyan-400 bg-cyan-400/20 border border-cyan-400/40 shadow-lg shadow-cyan-400/20"
+                    : "text-blue-200 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/20"
+                }`}
+              >
+                <Menu size={18} />
+                <span className="font-medium">More</span>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-300 ${
+                    isDropdownOpen ? "rotate-180" : ""
                   }`}
-                >
-                  <item.icon size={18} />
-                  <span className="font-medium">{item.label}</span>
-                </Link>
-              ))}
+                />
+              </button>
+
+              {isDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsDropdownOpen(false)}
+                  ></div>
+
+                  <div className="absolute right-0 top-full mt-2 z-50">
+                    <GlassCard className="py-2 min-w-[250px] border border-cyan-400/20">
+                      {menuItems.map((item) => (
+                        <Link
+                          key={item.label}
+                          href={item.href}
+                          className={`flex items-center space-x-3 px-4 py-3 hover:bg-white/10 transition-all duration-300 ${
+                            isActive(item.href)
+                              ? "text-cyan-400 bg-cyan-400/20"
+                              : "text-blue-200 hover:text-white"
+                          }`}
+                          onClick={() => setIsDropdownOpen(false)}
+                        >
+                          <item.icon size={18} />
+                          <div className="flex-1">
+                            <span className="font-medium">{item.label}</span>
+                            <p className="text-xs text-blue-200/70 mt-0.5">
+                              {item.desc}
+                            </p>
+                          </div>
+                        </Link>
+                      ))}
+                    </GlassCard>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </GlassCard>
@@ -105,13 +158,22 @@ export function Navbar() {
               href="/"
               className="flex items-center space-x-2 group"
             >
-              <div className="relative">
-                <Waves size={24} className="text-cyan-400 group-hover:text-cyan-300 transition-all duration-300" />
-                <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-md group-hover:bg-cyan-300/30 transition-all duration-300"></div>
-              </div>
-              <span className="text-white font-bold text-lg bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:to-blue-300 transition-all duration-300">
-                vidocean
-              </span>
+               <div className="flex items-center space-x-3">
+                  {/* Logo with glow effect */}
+                  <div className="relative w-7 h-7 sm:w-9 sm:h-9">
+                    <img
+                      src="/favicon.ico"
+                      alt="VidOcean Logo"
+                      className="object-contain w-full h-full rounded-full"
+                     />
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 opacity-30 blur-md"></div>
+                  </div>
+
+                  {/* Brand name with matching gradient */}
+                  <span className="text-xl sm:text-2xl font-extrabold  bg-gradient-to-r from-cyan-400 via-blue-400 to-blue-500 bg-clip-text text-transparent select-none tracking-wide">
+                    VidOcean
+                  </span>
+                </div>
             </Link>
 
             {/* Compact Navigation */}
@@ -131,63 +193,66 @@ export function Navbar() {
                 </Link>
               ))}
 
-              {/* Dropdown Menu */}
-              {menuItems.length > 0 && (
-                <div className="relative">
-                  <button
-                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className={`transition-all duration-300 flex items-center space-x-1 px-3 py-2 rounded-lg hover:scale-105 ${
-                      isDropdownOpen ||
-                      menuItems.some((item) => isActive(item.href))
-                        ? "text-cyan-400 bg-cyan-400/20 border border-cyan-400/40"
-                        : "text-blue-200 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/20"
+              {/* Dropdown Menu - Updated */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className={`transition-all duration-300 flex items-center space-x-1 px-3 py-2 rounded-lg hover:scale-105 ${
+                    isDropdownOpen ||
+                    menuItems.some((item) => isActive(item.href))
+                      ? "text-cyan-400 bg-cyan-400/20 border border-cyan-400/40"
+                      : "text-blue-200 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/20"
+                  }`}
+                >
+                  <Menu size={18} />
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-300 ${
+                      isDropdownOpen ? "rotate-180" : ""
                     }`}
-                  >
-                    <Menu size={18} />
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform duration-300 ${
-                        isDropdownOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
+                  />
+                </button>
 
-                  {isDropdownOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setIsDropdownOpen(false)}
-                      ></div>
+                {isDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsDropdownOpen(false)}
+                    ></div>
 
-                      <div className="absolute right-0 top-full mt-2 z-50">
-                        <GlassCard className="py-2 min-w-[200px] border border-cyan-400/20">
-                          {menuItems.map((item) => (
-                            <Link
-                              key={item.label}
-                              href={item.href}
-                              className={`flex items-center space-x-3 px-4 py-3 hover:bg-white/10 transition-all duration-300 ${
-                                isActive(item.href)
-                                  ? "text-cyan-400 bg-cyan-400/20"
-                                  : "text-blue-200 hover:text-white"
-                              }`}
-                              onClick={() => setIsDropdownOpen(false)}
-                            >
-                              <item.icon size={18} />
+                    <div className="absolute right-0 top-full mt-2 z-50">
+                      <GlassCard className="py-2 min-w-[240px] border border-cyan-400/20">
+                        {menuItems.map((item) => (
+                          <Link
+                            key={item.label}
+                            href={item.href}
+                            className={`flex items-center space-x-3 px-4 py-3 hover:bg-white/10 transition-all duration-300 ${
+                              isActive(item.href)
+                                ? "text-cyan-400 bg-cyan-400/20"
+                                : "text-blue-200 hover:text-white"
+                            }`}
+                            onClick={() => setIsDropdownOpen(false)}
+                          >
+                            <item.icon size={18} />
+                            <div className="flex-1">
                               <span className="font-medium">{item.label}</span>
-                            </Link>
-                          ))}
-                        </GlassCard>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+                              <p className="text-xs text-blue-200/70 mt-0.5">
+                                {item.desc}
+                              </p>
+                            </div>
+                          </Link>
+                        ))}
+                      </GlassCard>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </GlassCard>
       </nav>
 
-      {/* Mobile Bottom Navbar (Small screens) - NO TOP MARGIN ISSUES */}
+      {/* Mobile Bottom Navbar (Small screens) */}
       <nav className="md:hidden fixed bottom-4 left-4 right-4 z-50">
         <GlassCard className="px-2 py-3 border border-cyan-400/20">
           <div className="flex justify-around items-center">
@@ -220,7 +285,7 @@ export function Navbar() {
         </GlassCard>
       </nav>
 
-      {/* Mobile Menu Overlay - IMPROVED SPACING */}
+      {/* Mobile Menu Overlay - Updated with all new pages */}
       {isMenuOpen && (
         <>
           <div
@@ -228,10 +293,9 @@ export function Navbar() {
             onClick={() => setIsMenuOpen(false)}
           ></div>
 
-          {/* 🔥 FIXED - Better positioning without top margin issues */}
           <div className="md:hidden fixed bottom-20 left-4 right-4 z-50">
-            <GlassCard className="p-6 border border-cyan-400/20">
-              {/* Menu Header with vidocean logo */}
+            <GlassCard className="p-6 border border-cyan-400/20 max-h-[70vh] overflow-y-auto">
+              {/* Menu Header */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-3 group">
                   <div className="relative">
@@ -251,7 +315,7 @@ export function Navbar() {
                 </button>
               </div>
 
-              {/* Menu Items */}
+              {/* Menu Items - Updated with all pages */}
               <div className="space-y-2">
                 {/* TikTok Link */}
                 <Link
@@ -272,7 +336,7 @@ export function Navbar() {
                   </div>
                 </Link>
 
-                {/* About Link */}
+                {/* All Menu Items */}
                 {menuItems.map((item) => (
                   <Link
                     key={item.label}
@@ -288,7 +352,7 @@ export function Navbar() {
                     <div className="flex-1">
                       <span className="font-medium text-lg">{item.label}</span>
                       <p className="text-xs text-blue-200/70 mt-1">
-                        Learn more about vidocean
+                        {item.desc}
                       </p>
                     </div>
                   </Link>
