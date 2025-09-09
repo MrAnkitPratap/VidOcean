@@ -11,17 +11,17 @@ export const metadata = {
   // 🔥 FAVICON - Browser tab icon के लिए
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/fav.ico", sizes: "32x32" },
       { url: "/icon.png", sizes: "192x192" }
     ],
-    shortcut: "/favicon.ico",
+    shortcut: "/fav.ico",
     apple: "/apple-touch-icon.png",
   },
   
   openGraph: {
     title: "vidocean - Universal Video Downloader",
     description: "Download videos from 1000+ platforms with format selection and real-time progress.",
-    url: "https://vidocean.xyz", // ⚠️ videoscan.xyz fix किया
+    url: "https://vidocean.xyz",
     siteName: "vidocean",
     type: "website",
     images: [
@@ -78,8 +78,14 @@ export default function RootLayout({
         <main className="pt-4 md:pt-24 lg:pt-32 pb-28 md:pb-8 px-4 relative z-10">
           {children}
         </main>
+
+        {/* 🔥 ADSTERRA NATIVE BANNER SCRIPT - Positioned for optimal loading */}
+        <script 
+          async 
+          data-cfasync="false" 
+          src="//pl27603823.revenuecpmgate.com/2ec1a8e66e3a1bf2623b769d31d24e75/invoke.js"
+        ></script>
       </body>
     </html>
   );
 }
-

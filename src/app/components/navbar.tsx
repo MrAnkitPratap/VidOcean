@@ -162,7 +162,7 @@ export function Navbar() {
                   {/* Logo with glow effect */}
                   <div className="relative w-7 h-7 sm:w-9 sm:h-9">
                     <img
-                      src="/favicon.ico"
+                      src="/fav.ico"
                       alt="VidOcean Logo"
                       className="object-contain w-full h-full rounded-full"
                      />
