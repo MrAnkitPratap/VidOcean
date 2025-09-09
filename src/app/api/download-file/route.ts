@@ -309,10 +309,13 @@
 //   }
 // }
 
-
 import { NextRequest, NextResponse } from "next/server";
 import { createReadStream, promises as fs } from "fs";
 import path from "path";
+
+// 🎯 Track active downloads per file
+const activeFileDownloads = new Map<string, number>();
+const downloadCompletionCallbacks = new Map<string, NodeJS.Timeout[]>();
 
 export async function GET(request: NextRequest) {
   try {
@@ -336,6 +339,12 @@ export async function GET(request: NextRequest) {
     const stats = await fs.stat(filePath);
     const fileSize = stats.size;
 
+    // 📊 Track this download
+    const currentCount = activeFileDownloads.get(filename) || 0;
+    activeFileDownloads.set(filename, currentCount + 1);
+
+    console.log(`📥 Starting download: ${filename} (Active: ${currentCount + 1})`);
+
     // 🔥 Handle Range Requests for Resume/Pause functionality
     const rangeHeader = request.headers.get("range");
     
@@ -346,8 +355,27 @@ export async function GET(request: NextRequest) {
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
       const chunkSize = (end - start) + 1;
 
-      // Create partial stream
+      // Create partial stream with error handling
       const fileStream = createReadStream(filePath, { start, end });
+
+      // 🚨 Handle stream errors
+      fileStream.on('error', (error) => {
+        console.error(`Stream error for ${filename}:`, error);
+        decrementDownloadCounter(filename);
+      });
+
+      // 📝 Track completion for partial downloads
+      fileStream.on('close', () => {
+        console.log(`📤 Partial download chunk completed: ${filename} (${start}-${end})`);
+        
+        // 🏁 If this was the final chunk, mark as complete
+        if (end === fileSize - 1) {
+          console.log(`✅ Final chunk downloaded: ${filename}`);
+          scheduleSmartFileDeletion(filePath, filename);
+        }
+        
+        decrementDownloadCounter(filename);
+      });
 
       // Set partial content headers
       const headers = new Headers();
@@ -360,12 +388,7 @@ export async function GET(request: NextRequest) {
       headers.set("Pragma", "no-cache");
       headers.set("Expires", "0");
 
-      console.log(`Resuming download: ${filename} (${start}-${end}/${fileSize})`);
-
-      // 🗑️ Schedule file deletion after complete download
-      if (end === fileSize - 1) {
-        scheduleFileDeletion(filePath, filename);
-      }
+      console.log(`📋 Resuming download: ${filename} (${start}-${end}/${fileSize})`);
 
       return new NextResponse(fileStream as any, { 
         status: 206, // Partial Content
@@ -374,7 +397,20 @@ export async function GET(request: NextRequest) {
     } else {
       // 🚀 Full file download with optimized headers
       const fileStream = createReadStream(filePath, {
-        highWaterMark: 64 * 1024 // 64KB chunks for better performance
+        highWaterMark: 128 * 1024 // 128KB chunks for better performance
+      });
+
+      // 🚨 Handle stream errors
+      fileStream.on('error', (error) => {
+        console.error(`Stream error for ${filename}:`, error);
+        decrementDownloadCounter(filename);
+      });
+
+      // 📝 Track completion
+      fileStream.on('close', () => {
+        console.log(`✅ Full download completed: ${filename}`);
+        scheduleSmartFileDeletion(filePath, filename);
+        decrementDownloadCounter(filename);
       });
 
       const headers = new Headers();
@@ -388,37 +424,74 @@ export async function GET(request: NextRequest) {
       
       // 🔧 Performance optimization headers
       headers.set("Connection", "keep-alive");
-      headers.set("Keep-Alive", "timeout=5, max=1000");
+      headers.set("Keep-Alive", "timeout=10, max=1000");
 
-      console.log(`Starting full download: ${filename} (${fileSize} bytes)`);
-
-      // 🗑️ Schedule file deletion after download completes
-      scheduleFileDeletion(filePath, filename);
+      console.log(`🚀 Starting full download: ${filename} (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
 
       return new NextResponse(fileStream as any, { headers });
     }
   } catch (error: any) {
-    console.error("Download file error:", error);
+    console.error("💥 Download file error:", error);
     return new NextResponse("Download failed", { status: 500 });
   }
 }
 
-// 🕒 File deletion scheduler - deletes after download is likely complete
-function scheduleFileDeletion(filePath: string, filename: string) {
-  // Delete file after 30 seconds (enough time for browser to complete download)
-  setTimeout(async () => {
-    try {
-      await fs.access(filePath);
-      await fs.unlink(filePath);
-      console.log(`✅ File deleted from server: ${filename}`);
-    } catch (err) {
-      // File already deleted or doesn't exist
-      console.log(`File already removed: ${filename}`);
-    }
-  }, 30000); // 30 seconds delay
+// 📉 Decrement download counter
+function decrementDownloadCounter(filename: string) {
+  const currentCount = activeFileDownloads.get(filename) || 0;
+  if (currentCount <= 1) {
+    activeFileDownloads.delete(filename);
+    console.log(`📊 No more active downloads for: ${filename}`);
+  } else {
+    activeFileDownloads.set(filename, currentCount - 1);
+    console.log(`📊 Active downloads for ${filename}: ${currentCount - 1}`);
+  }
 }
 
-// 🧹 Alternative: More intelligent file cleanup
+// 🧠 Smart file deletion - only when no active downloads
+function scheduleSmartFileDeletion(filePath: string, filename: string) {
+  // Wait a bit for any pending downloads to start
+  const cleanupTimeout = setTimeout(async () => {
+    try {
+      // Check if there are still active downloads
+      const activeCount = activeFileDownloads.get(filename) || 0;
+      if (activeCount > 0) {
+        console.log(`⏳ Postponing deletion - ${activeCount} active downloads: ${filename}`);
+        // Reschedule for later
+        scheduleSmartFileDeletion(filePath, filename);
+        return;
+      }
+
+      // Check if file still exists
+      await fs.access(filePath);
+      await fs.unlink(filePath);
+      console.log(`🗑️ File deleted from server: ${filename}`);
+      
+      // Clear any pending callbacks
+      clearCompletionCallbacks(filename);
+      
+    } catch (err) {
+      console.log(`📁 File already removed: ${filename}`);
+    }
+  }, 10000); // 10 seconds delay
+
+  // Store cleanup callback for potential cancellation
+  if (!downloadCompletionCallbacks.has(filename)) {
+    downloadCompletionCallbacks.set(filename, []);
+  }
+  downloadCompletionCallbacks.get(filename)!.push(cleanupTimeout);
+}
+
+// 🧹 Clear completion callbacks
+function clearCompletionCallbacks(filename: string) {
+  const callbacks = downloadCompletionCallbacks.get(filename);
+  if (callbacks) {
+    callbacks.forEach(callback => clearTimeout(callback));
+    downloadCompletionCallbacks.delete(filename);
+  }
+}
+
+// 🕒 Enhanced cleanup function - runs periodically
 export async function cleanupOldFiles() {
   const downloadDir = path.join(process.cwd(), "public", "downloads");
   
@@ -430,13 +503,20 @@ export async function cleanupOldFiles() {
       const filePath = path.join(downloadDir, file);
       const stats = await fs.stat(filePath);
       
-      // Delete files older than 5 minutes
-      if (now - stats.mtime.getTime() > 5 * 60 * 1000) {
+      // Only delete files older than 10 minutes AND no active downloads
+      const ageMinutes = (now - stats.mtime.getTime()) / 1000 / 60;
+      const activeCount = activeFileDownloads.get(file) || 0;
+      
+      if (ageMinutes > 10 && activeCount === 0) {
         await fs.unlink(filePath);
-        console.log(`🗑️ Cleaned up old file: ${file}`);
+        console.log(`🗑️ Cleaned up old file: ${file} (${ageMinutes.toFixed(1)}min old)`);
+        clearCompletionCallbacks(file);
       }
     }
   } catch (error) {
-    console.error("Cleanup error:", error);
+    console.error("💥 Cleanup error:", error);
   }
 }
+
+// 🔄 Export active downloads for monitoring
+export { activeFileDownloads };
