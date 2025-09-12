@@ -1,0 +1,18 @@
+# *
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /test/
+
+# Googlebot
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+# Host
+Host: https://vidocean.xyz
+
+# Sitemaps
+Sitemap: https://vidocean.xyz/sitemap.xml

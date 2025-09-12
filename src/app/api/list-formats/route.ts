@@ -1037,12 +1037,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 🔥 ADD UNIQUE REQUEST ID TO PREVENT SEQUENCE ISSUES
-    const requestId =
-      Date.now() + "_" + Math.random().toString(36).substr(2, 9);
-    const urlHash = Buffer.from(url).toString("base64").substr(0, 16);
-
-    console.log(`🎥 Processing [${requestId}] for URL: ${url}`);
+    console.log("🎥 Processing for ALL qualities:", url);
 
     // 🚀 ENHANCED COMMAND FOR ALL QUALITY FORMATS
     let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors --skip-unavailable-fragments`;
@@ -1099,44 +1094,21 @@ export async function GET(request: NextRequest) {
         if (listOutput) {
           const parsedFormats = parseFormatList(listOutput);
           if (parsedFormats.length > 0) {
-            return NextResponse.json(
-              {
-                success: true,
-                title: videoInfo.title || "Unknown Title",
-                duration: formatDuration(videoInfo.duration),
-                thumbnail: videoInfo.thumbnail || getBestThumbnail(videoInfo),
-                uploader: videoInfo.uploader || videoInfo.channel || "Unknown",
-                platform: detectPlatform(url),
-                formats: parsedFormats,
-                total_formats: parsedFormats.length,
-                extraction_method: "format-list-fallback",
-                extracted_at: Date.now(),
-                // 🔥 ADD UNIQUE IDENTIFIERS
-                request_id: requestId,
-                url_hash: urlHash,
-                original_url: url,
-              },
-              {
-                headers: {
-                  "Content-Type": "application/json",
-                  // 🚫 NO CACHE - Always fetch fresh data
-                  "Cache-Control":
-                    "no-cache, no-store, must-revalidate, max-age=0",
-                  Pragma: "no-cache",
-                  Expires: "0",
-                  // 🔥 PREVENT SEQUENCE ISSUES
-                  "X-Request-ID": requestId,
-                  "X-URL-Hash": urlHash,
-                },
-              }
-            );
+            return NextResponse.json({
+              success: true,
+              title: videoInfo.title || "Unknown Title",
+              duration: formatDuration(videoInfo.duration),
+              thumbnail: videoInfo.thumbnail || getBestThumbnail(videoInfo),
+              uploader: videoInfo.uploader || videoInfo.channel || "Unknown",
+              platform: detectPlatform(url),
+              formats: parsedFormats,
+              total_formats: parsedFormats.length,
+              extraction_method: "format-list-fallback",
+              extracted_at: Date.now(),
+            });
           }
         }
       }
-
-      console.log(
-        `✅ Success [${requestId}]: Found ${allFormats.length} formats for ${videoInfo.title}`
-      );
 
       return NextResponse.json(
         {
@@ -1151,27 +1123,17 @@ export async function GET(request: NextRequest) {
           total_formats: allFormats.length,
           extraction_method: "json-extraction",
           extracted_at: Date.now(),
-          // 🔥 ADD UNIQUE IDENTIFIERS
-          request_id: requestId,
-          url_hash: urlHash,
-          original_url: url,
         },
         {
           headers: {
             "Content-Type": "application/json",
-            // 🚫 NO CACHE - Always fetch fresh data
-            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
-            Pragma: "no-cache",
-            Expires: "0",
-            // 🔥 PREVENT SEQUENCE ISSUES
-            "X-Request-ID": requestId,
-            "X-URL-Hash": urlHash,
+            "Cache-Control": "public, max-age=600",
           },
         }
       );
     } catch (execError: any) {
       console.error(
-        `💥 Execution failed [${requestId}]:`,
+        "💥 Execution failed:",
         execError.message?.substring(0, 100)
       );
 
@@ -1181,18 +1143,8 @@ export async function GET(request: NextRequest) {
           error: "extraction_failed",
           message: "Unable to extract high-quality formats",
           platform: detectPlatform(url),
-          request_id: requestId,
-          url_hash: urlHash,
-          original_url: url,
         },
-        {
-          status: 422,
-          headers: {
-            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
-            Pragma: "no-cache",
-            Expires: "0",
-          },
-        }
+        { status: 422 }
       );
     }
   } catch (error: any) {
@@ -1202,14 +1154,7 @@ export async function GET(request: NextRequest) {
         success: false,
         error: "internal_error",
       },
-      {
-        status: 500,
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      }
+      { status: 500 }
     );
   }
 }
@@ -1421,9 +1366,9 @@ function getBestThumbnail(data: any): string {
   if (data.thumbnail) return data.thumbnail;
   if (data.thumbnails && Array.isArray(data.thumbnails)) {
     const best = data.thumbnails
-      .filter((t:any) => t && t.url)
+      .filter((t) => t && t.url)
       .sort(
-        (a:any, b:any) =>
+        (a, b) =>
           (b.width || 0) * (b.height || 0) - (a.width || 0) * (a.height || 0)
       )[0];
     return best?.url || "";

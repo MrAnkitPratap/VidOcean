@@ -28,10 +28,10 @@ export function Navbar() {
 
   const navItems = [
     { icon: Home, label: "Home", href: "/" },
-    { icon: Instagram, label: "Instagram", href: "/instagram" },
-    { icon: Facebook, label: "Facebook", href: "/facebook" },
-    { icon: Youtube, label: "YouTube", href: "/youtube" },
-    { icon: Music, label: "TikTok", href: "/tiktok" },
+    { icon: Instagram, label: "Instagram", href: "/instagram-downloader" },
+    { icon: Facebook, label: "Facebook", href: "/facebook-downloader" },
+    { icon: Youtube, label: "YouTube", href: "/youtube-downloader" },
+    { icon: Music, label: "TikTok", href: "/tiktok-downloader" },
   ];
 
   // 🔥 UPDATED MENU ITEMS - Added privacy, terms, guide

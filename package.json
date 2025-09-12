@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start -H 0.0.0.0 -p 3000",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postbuild": "next-sitemap"
   },
   "dependencies": {
     "@types/node-fetch": "^2.6.13",
@@ -15,6 +16,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.540.0",
     "next": "15.5.0",
+    "next-sitemap": "^4.2.3",
     "node-fetch": "^3.3.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
