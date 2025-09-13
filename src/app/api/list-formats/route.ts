@@ -1376,11 +1376,653 @@
 //   return "";
 // }
 
+// import { NextRequest, NextResponse } from "next/server";
+// import { exec } from "child_process";
+// import { promisify } from "util";
+
+// const execAsync = promisify(exec);
+
+// export async function GET(request: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(request.url);
+//     const url = searchParams.get("url");
+
+//     if (!url) {
+//       return NextResponse.json(
+//         { success: false, error: "URL parameter required" },
+//         { status: 400 }
+//       );
+//     }
+
+//     const platform = detectPlatform(url);
+//     console.log(`🎯 Processing ${platform} formats:`, url);
+
+//     // 🔥 ANTI-DETECTION HEADERS & USER AGENTS
+//     const userAgents = [
+//       "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
+//       "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+//       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+//       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+//     ];
+//     const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+
+//     // 🎬 PLATFORM-SPECIFIC OPTIMIZATIONS
+//     let command = buildPlatformCommand(platform, url, randomUA);
+
+//     try {
+//       const { stdout: jsonOutput } = await execAsync(command, {
+//         timeout: 30000, // Extended timeout
+//         maxBuffer: 1024 * 1024 * 20, // 20MB buffer
+//       });
+
+//       if (!jsonOutput || jsonOutput.trim() === "") {
+//         throw new Error("Empty response from extractor");
+//       }
+
+//       const videoInfo = JSON.parse(jsonOutput.trim());
+//       const allFormats = extractOptimizedFormats(
+//         videoInfo.formats || [],
+//         platform
+//       );
+
+//       return NextResponse.json(
+//         {
+//           success: true,
+//           title: videoInfo.title || "Unknown Title",
+//           duration: formatDuration(videoInfo.duration),
+//           thumbnail: getBestThumbnail(videoInfo),
+//           uploader: videoInfo.uploader || videoInfo.channel || "Unknown",
+//           view_count: formatNumber(videoInfo.view_count),
+//           platform: platform,
+//           formats: allFormats,
+//           total_formats: allFormats.length,
+//           extracted_at: Date.now(),
+//         },
+//         {
+//           headers: {
+//             "Content-Type": "application/json",
+//             "Cache-Control": "public, max-age=300", // 5 min cache
+//           },
+//         }
+//       );
+//     } catch (execError: any) {
+//       console.error(`💥 ${platform} extraction failed:`, execError.message);
+
+//       // 🔄 FALLBACK STRATEGY
+//       const fallbackResult = await attemptFallbackExtraction(
+//         url,
+//         platform,
+//         randomUA
+//       );
+//       if (fallbackResult.success) {
+//         return NextResponse.json(fallbackResult);
+//       }
+
+//       return NextResponse.json(
+//         {
+//           success: false,
+//           error: "extraction_failed",
+//           message: `${platform} format extraction failed. Try again in few seconds.`,
+//           platform: platform,
+//         },
+//         { status: 422 }
+//       );
+//     }
+//   } catch (error: any) {
+//     console.error("💀 Fatal error:", error.message);
+//     return NextResponse.json(
+//       {
+//         success: false,
+//         error: "internal_error",
+//       },
+//       { status: 500 }
+//     );
+//   }
+// }
+
+// // 🔧 PLATFORM-SPECIFIC COMMAND BUILDER
+// function buildPlatformCommand(
+//   platform: string,
+//   url: string,
+//   userAgent: string
+// ): string {
+//   let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+
+//   // Base settings for all platforms
+//   command += ` --socket-timeout 30 --retries 3 --fragment-retries 3`;
+//   command += ` --user-agent "${userAgent}"`;
+
+//   switch (platform) {
+//     case "instagram":
+//       // 🔥 INSTAGRAM ANTI-DETECTION
+//       command += ` --add-header "X-Instagram-AJAX:1"`;
+//       command += ` --add-header "X-Requested-With:XMLHttpRequest"`;
+//       command += ` --add-header "Accept:*/*"`;
+//       command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
+//       command += ` --add-header "Sec-Fetch-Dest:empty"`;
+//       command += ` --add-header "Sec-Fetch-Mode:cors"`;
+//       command += ` --extractor-args "instagram:api_version=v1"`;
+//       break;
+
+//     case "facebook":
+//       // 🔥 FACEBOOK OPTIMIZATION
+//       command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
+//       command += ` --add-header "Referer:https://www.facebook.com/"`;
+//       command += ` --add-header "Sec-Fetch-Dest:video"`;
+//       command += ` --add-header "Sec-Fetch-Mode:no-cors"`;
+//       // Try mobile version for better access
+//       if (url.includes("facebook.com")) {
+//         url = url.replace("www.facebook.com", "m.facebook.com");
+//       }
+//       break;
+
+//     case "youtube":
+//       // 🔥 YOUTUBE MULTI-CLIENT BYPASS
+//       command += ` --extractor-args "youtube:player_client=android,ios,web"`;
+//       command += ` --extractor-args "youtube:player_skip=configs,webpage"`;
+//       command += ` --extractor-args "youtube:skip=dash,hls"`;
+//       // Additional bypass for age restrictions
+//       command += ` --extractor-args "youtube:innertube_host=youtubei.googleapis.com"`;
+//       break;
+
+//     case "tiktok":
+//       // 🔥 TIKTOK ANTI-BOT
+//       command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"`;
+//       command += ` --add-header "Accept-Encoding:gzip, deflate"`;
+//       command += ` --add-header "DNT:1"`;
+//       command += ` --add-header "Connection:keep-alive"`;
+//       command += ` --sleep-interval 2 --max-sleep-interval 5`;
+//       break;
+//   }
+
+//   command += ` --geo-bypass "${url}"`;
+//   return command;
+// }
+
+// // 🔧 OPTIMIZED FORMAT EXTRACTOR
+// function extractOptimizedFormats(formats: any[], platform: string) {
+//   if (!Array.isArray(formats) || formats.length === 0) return [];
+
+//   const uniqueMap = new Map();
+//   const processed: any[] = [];
+
+//   // Platform-specific sorting priorities
+//   const sortedFormats = formats.sort((a, b) => {
+//     if (platform === "instagram" || platform === "facebook") {
+//       // Prioritize direct MP4 formats
+//       if (a.ext === "mp4" && b.ext !== "mp4") return -1;
+//       if (b.ext === "mp4" && a.ext !== "mp4") return 1;
+//     }
+
+//     const aHeight = a.height || 0;
+//     const bHeight = b.height || 0;
+//     if (aHeight !== bHeight) return bHeight - aHeight;
+//     return (b.tbr || 0) - (a.tbr || 0);
+//   });
+
+//   for (const format of sortedFormats) {
+//     if (!format || !format.format_id) continue;
+
+//     // Skip problematic formats
+//     if (shouldSkipFormat(format, platform)) continue;
+
+//     const quality = getQualityLabel(format);
+//     const resolution = getResolution(format);
+//     const type = getFormatType(format);
+//     const uniqueKey = `${quality}_${resolution}_${type}_${format.ext || "mp4"}`;
+
+//     if (uniqueMap.has(uniqueKey)) continue;
+//     uniqueMap.set(uniqueKey, true);
+
+//     const processedFormat = {
+//       format_id: format.format_id,
+//       ext: format.ext || "mp4",
+//       quality: quality,
+//       resolution: resolution,
+//       filesize: getFileSize(format.filesize || format.filesize_approx),
+//       vcodec: format.vcodec === "none" ? null : format.vcodec || "h264",
+//       acodec: format.acodec === "none" ? null : format.acodec || "aac",
+//       fps: format.fps || null,
+//       tbr: Math.round(format.tbr || 0),
+//       vbr: Math.round(format.vbr || 0),
+//       abr: Math.round(format.abr || 0),
+//       type: type,
+//       note: format.format_note || "",
+//       protocol: format.protocol || "https",
+//       height: format.height || null,
+//       width: format.width || null,
+//       url: format.url || null, // Important for direct access
+//     };
+
+//     processed.push(processedFormat);
+//   }
+
+//   return processed.slice(0, 30); // Return top 30 formats
+// }
+
+// // 🔄 FALLBACK EXTRACTION
+// async function attemptFallbackExtraction(
+//   url: string,
+//   platform: string,
+//   userAgent: string
+// ) {
+//   try {
+//     // Try with format listing approach
+//     const listCommand = `yt-dlp --list-formats --no-warnings --user-agent "${userAgent}" "${url}"`;
+//     const { stdout: listOutput } = await execAsync(listCommand, {
+//       timeout: 20000,
+//       maxBuffer: 1024 * 1024 * 10,
+//     });
+
+//     if (listOutput) {
+//       const parsedFormats = parseFormatListAdvanced(listOutput, platform);
+//       if (parsedFormats.length > 0) {
+//         return {
+//           success: true,
+//           title: "Video",
+//           duration: "",
+//           thumbnail: "",
+//           uploader: "Unknown",
+//           platform: platform,
+//           formats: parsedFormats,
+//           total_formats: parsedFormats.length,
+//           extraction_method: "fallback-list",
+//           extracted_at: Date.now(),
+//         };
+//       }
+//     }
+//   } catch (error) {
+//     console.log(`Fallback also failed for ${platform}`);
+//   }
+
+//   return { success: false };
+// }
+
+// function shouldSkipFormat(format: any, platform: string): boolean {
+//   // Skip MHTML and very low quality formats
+//   if (format.ext === "mhtml") return true;
+//   if (format.protocol === "m3u8_native" && format.tbr && format.tbr < 100)
+//     return true;
+
+//   // Platform specific skips
+//   if (platform === "instagram" || platform === "facebook") {
+//     // Skip formats without direct URLs for social media
+//     if (!format.url && !format.fragment_base_url) return true;
+//   }
+
+//   return false;
+// }
+
+// // ... (Other helper functions remain same but optimized)
+// function detectPlatform(url: string): string {
+//   const cleanUrl = url.toLowerCase();
+//   if (cleanUrl.includes("instagram.com")) return "instagram";
+//   if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be"))
+//     return "youtube";
+//   if (cleanUrl.includes("tiktok.com")) return "tiktok";
+//   if (cleanUrl.includes("facebook.com") || cleanUrl.includes("fb.watch"))
+//     return "facebook";
+//   return "generic";
+// }
+
+// function getQualityLabel(format: any): string {
+//   if (format.height) {
+//     if (format.height >= 2160) return "4K";
+//     if (format.height >= 1440) return "1440p";
+//     if (format.height >= 1080) return "1080p";
+//     if (format.height >= 720) return "720p";
+//     if (format.height >= 480) return "480p";
+//     if (format.height >= 360) return "360p";
+//     return `${format.height}p`;
+//   }
+//   if (format.format_note) return format.format_note;
+//   if (format.abr) return `${format.abr}kbps`;
+//   return "default";
+// }
+
+// function getResolution(format: any): string {
+//   if (format.height && format.width) return `${format.width}x${format.height}`;
+//   if (format.height)
+//     return `${Math.round((format.height * 16) / 9)}x${format.height}`;
+//   return "audio";
+// }
+
+// function getFileSize(size: number | null): string {
+//   if (!size || size <= 0) return "unknown";
+//   const gb = size / (1024 * 1024 * 1024);
+//   const mb = size / (1024 * 1024);
+//   if (gb >= 1) return `${gb.toFixed(1)}GB`;
+//   if (mb >= 1) return `${mb.toFixed(1)}MB`;
+//   return `${(size / 1024).toFixed(0)}KB`;
+// }
+
+// function getFormatType(format: any): string {
+//   const hasVideo = format.vcodec && format.vcodec !== "none";
+//   const hasAudio = format.acodec && format.acodec !== "none";
+//   if (hasVideo && hasAudio) return "video+audio";
+//   if (hasVideo) return "video";
+//   if (hasAudio) return "audio";
+//   return "unknown";
+// }
+
+// function formatDuration(seconds: number | null): string {
+//   if (!seconds) return "";
+//   const hours = Math.floor(seconds / 3600);
+//   const minutes = Math.floor((seconds % 3600) / 60);
+//   const secs = Math.floor(seconds % 60);
+//   if (hours > 0) {
+//     return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
+//       .toString()
+//       .padStart(2, "0")}`;
+//   }
+//   return `${minutes}:${secs.toString().padStart(2, "0")}`;
+// }
+
+// function formatNumber(num: number | null): string {
+//   if (!num) return "";
+//   if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
+//   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+//   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+//   return num.toLocaleString();
+// }
+
+// function getBestThumbnail(data: any): string {
+//   if (data.thumbnail) return data.thumbnail;
+//   if (data.thumbnails && Array.isArray(data.thumbnails)) {
+//     const best = data.thumbnails
+//       .filter((t) => t && t.url)
+//       .sort(
+//         (a, b) =>
+//           (b.width || 0) * (b.height || 0) - (a.width || 0) * (a.height || 0)
+//       )[0];
+//     return best?.url || "";
+//   }
+//   return "";
+// }
+
+// function parseFormatListAdvanced(listOutput: string, platform: string) {
+//   const lines = listOutput.split("\n");
+//   const formats: any[] = [];
+
+//   for (const line of lines) {
+//     if (line.includes("mp4") || line.includes("webm") || line.includes("m4a")) {
+//       const parts = line.trim().split(/\s+/);
+//       if (parts.length >= 3) {
+//         const formatId = parts[0];
+//         const ext = parts[1] || "mp4";
+//         const quality = parts[2] || "unknown";
+
+//         let resolution = "audio";
+//         let height = null;
+
+//         const resMatch = line.match(/(\d+)x(\d+)/);
+//         if (resMatch) {
+//           resolution = `${resMatch[1]}x${resMatch[2]}`;
+//           height = parseInt(resMatch[2]);
+//         } else {
+//           const heightMatch = line.match(/(\d+)p/);
+//           if (heightMatch) {
+//             height = parseInt(heightMatch[1]);
+//             resolution = `${Math.round((height * 16) / 9)}x${height}`;
+//           }
+//         }
+
+//         formats.push({
+//           format_id: formatId,
+//           ext: ext,
+//           quality: height ? `${height}p` : quality,
+//           resolution: resolution,
+//           filesize: "unknown",
+//           vcodec: ext === "m4a" ? null : "h264",
+//           acodec: line.includes("video only") ? null : "aac",
+//           fps: null,
+//           tbr: 0,
+//           type: getFormatTypeFromExt(ext, line),
+//           note: "",
+//           protocol: "https",
+//           height: height,
+//         });
+//       }
+//     }
+//   }
+
+//   return formats.sort((a, b) => (b.height || 0) - (a.height || 0));
+// }
+
+// function getFormatTypeFromExt(ext: string, line: string): string {
+//   if (ext === "m4a" || line.includes("audio only")) return "audio";
+//   if (line.includes("video only")) return "video";
+//   return "video+audio";
+// }
+
+
 import { NextRequest, NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
 
 const execAsync = promisify(exec);
+
+// 🌐 TYPE DEFINITIONS
+interface IPPools {
+  [key: string]: string[];
+}
+
+interface RequestCounts {
+  [key: string]: number;
+}
+
+interface LastRotations {
+  [key: string]: number;
+}
+
+interface MaxRequestsPerIP {
+  [key: string]: number;
+}
+
+interface RotationIntervals {
+  [key: string]: number;
+}
+
+interface FailedIPs {
+  [key: string]: Set<string>;
+}
+
+interface ProcessedFormat {
+  format_id: string;
+  ext: string;
+  quality: string;
+  resolution: string;
+  filesize: string;
+  vcodec: string | null;
+  acodec: string | null;
+  fps: number | null;
+  tbr: number;
+  vbr: number;
+  abr: number;
+  type: string;
+  note: string;
+  protocol: string;
+  height: number | null;
+  width: number | null;
+  language: string | null;
+  dynamic_range: string | null;
+}
+
+interface VideoInfo {
+  title?: string;
+  duration?: number;
+  thumbnail?: string;
+  uploader?: string;
+  channel?: string;
+  view_count?: number;
+  formats?: any[];
+  thumbnails?: any[];
+}
+
+interface IPStats {
+  platform: string;
+  normalizedPlatform: string;
+  currentIP: string;
+  requestCount: number;
+  maxRequests: number;  
+  failedIPs: number;
+  totalIPs: number;
+  workingIPs: number;
+}
+
+// 🌐 COMPLETE IP ROTATION SYSTEM FOR ALL PLATFORMS
+class UniversalIPRotationManager {
+  private ipPools: IPPools;
+  private currentIndexes: RequestCounts;
+  private requestCounts: RequestCounts;
+  private lastRotations: LastRotations;
+  private maxRequestsPerIP: MaxRequestsPerIP;
+  private rotationIntervals: RotationIntervals;
+  private failedIPs: FailedIPs;
+
+  constructor() {
+    this.ipPools = {
+      youtube: [
+        "197.39.58.214", "3.58.167.48", "182.106.71.140", "185.162.231.106", 
+        "198.59.191.234", "103.207.8.130", "45.195.67.75", "103.216.207.15",
+        "178.128.51.12", "103.52.211.194"
+      ],
+      instagram: [
+        "103.174.179.31", "202.61.51.204", "41.65.174.120", "103.127.1.130",
+        "185.162.231.106", "198.59.191.234", "45.195.67.75", "103.216.207.15",
+        "178.128.51.12", "194.67.91.153"
+      ],
+      facebook: [
+        "103.245.204.214", "202.169.229.139", "103.145.133.22", "194.67.91.153",
+        "185.162.231.106", "103.174.179.31", "198.59.191.234", "41.65.174.120",
+        "103.127.1.130", "45.195.67.75"
+      ],
+      tiktok: [
+        "178.128.51.12", "103.52.211.194", "194.67.91.153", "103.207.8.130",
+        "185.162.231.106", "202.61.51.204", "41.65.174.120", "103.127.1.130",
+        "103.216.207.15", "198.59.191.234"
+      ],
+      generic: [
+        "103.174.179.31", "202.61.51.204", "41.65.174.120", "103.127.1.130", 
+        "185.162.231.106", "198.59.191.234", "45.195.67.75", "103.216.207.15",
+        "178.128.51.12", "103.52.211.194", "194.67.91.153", "103.207.8.130",
+        "103.245.204.214", "202.169.229.139", "103.145.133.22"
+      ]
+    };
+    
+    this.currentIndexes = {
+      youtube: 0, instagram: 0, facebook: 0, tiktok: 0, generic: 0
+    };
+    
+    this.requestCounts = {
+      youtube: 0, instagram: 0, facebook: 0, tiktok: 0, generic: 0
+    };
+    
+    this.lastRotations = {
+      youtube: Date.now(), instagram: Date.now(), facebook: Date.now(), 
+      tiktok: Date.now(), generic: Date.now()
+    };
+    
+    this.maxRequestsPerIP = {
+      youtube: 8, instagram: 12, facebook: 10, tiktok: 6, generic: 15
+    };
+    
+    this.rotationIntervals = {
+      youtube: 45 * 60 * 1000, instagram: 30 * 60 * 1000, facebook: 35 * 60 * 1000,
+      tiktok: 25 * 60 * 1000, generic: 40 * 60 * 1000
+    };
+    
+    this.failedIPs = {
+      youtube: new Set<string>(), instagram: new Set<string>(), facebook: new Set<string>(), 
+      tiktok: new Set<string>(), generic: new Set<string>()
+    };
+    
+    console.log("🌐 List-Formats Universal IP Rotation Manager initialized");
+  }
+
+  getCurrentIP(platform: string): string {
+    const normalizedPlatform = platform in this.ipPools ? platform : 'generic';
+    const pool = this.ipPools[normalizedPlatform];
+    const failedSet = this.failedIPs[normalizedPlatform];
+    
+    const workingIPs = pool.filter(ip => !failedSet.has(ip));
+    
+    if (workingIPs.length === 0) {
+      console.log(`🔄 All ${normalizedPlatform} IPs failed, resetting...`);
+      failedSet.clear();
+      this.currentIndexes[normalizedPlatform] = 0;
+      return pool[0];
+    }
+    
+    const currentIndex = this.currentIndexes[normalizedPlatform] % workingIPs.length;
+    const selectedIP = workingIPs[currentIndex];
+    
+    this.currentIndexes[normalizedPlatform]++;
+    
+    return selectedIP;
+  }
+
+  shouldRotateIP(platform: string): boolean {
+    const normalizedPlatform = platform in this.ipPools ? platform : 'generic';
+    const now = Date.now();
+    const timeSinceRotation = now - this.lastRotations[normalizedPlatform];
+    const requestCount = this.requestCounts[normalizedPlatform];
+    const maxRequests = this.maxRequestsPerIP[normalizedPlatform];
+    const rotationInterval = this.rotationIntervals[normalizedPlatform];
+    
+    return timeSinceRotation > rotationInterval || requestCount >= maxRequests;
+  }
+
+  rotateIP(platform: string): void {
+    const normalizedPlatform = platform in this.ipPools ? platform : 'generic';
+    this.requestCounts[normalizedPlatform] = 0;
+    this.lastRotations[normalizedPlatform] = Date.now();
+    this.currentIndexes[normalizedPlatform] = (this.currentIndexes[normalizedPlatform] + 1) % this.ipPools[normalizedPlatform].length;
+    
+    const newIP = this.getCurrentIP(platform);
+    console.log(`🔄 ${platform.toUpperCase()} IP rotated to: ${newIP}`);
+  }
+
+  recordRequest(platform: string): void {
+    const normalizedPlatform = platform in this.ipPools ? platform : 'generic';
+    this.requestCounts[normalizedPlatform]++;
+    const currentIP = this.getCurrentIP(platform);
+    console.log(`📊 ${platform.toUpperCase()} Request ${this.requestCounts[normalizedPlatform]}/${this.maxRequestsPerIP[normalizedPlatform]} for IP: ${currentIP}`);
+  }
+
+  recordIPFailure(platform: string, ip: string): void {
+    const normalizedPlatform = platform in this.ipPools ? platform : 'generic';
+    if (ip && this.failedIPs[normalizedPlatform]) {
+      this.failedIPs[normalizedPlatform].add(ip);
+      console.log(`❌ Marked ${platform} IP as failed: ${ip}`);
+    }
+  }
+
+  recordIPSuccess(platform: string, ip: string): void {
+    const normalizedPlatform = platform in this.ipPools ? platform : 'generic';
+    if (ip && this.failedIPs[normalizedPlatform] && this.failedIPs[normalizedPlatform].has(ip)) {
+      this.failedIPs[normalizedPlatform].delete(ip);
+      console.log(`✅ ${platform} IP recovered: ${ip}`);
+    }
+  }
+
+  getStats(platform: string): IPStats {
+    const normalizedPlatform = platform in this.ipPools ? platform : 'generic';
+    return {
+      platform: platform,
+      normalizedPlatform: normalizedPlatform,
+      currentIP: this.getCurrentIP(platform),
+      requestCount: this.requestCounts[normalizedPlatform],
+      maxRequests: this.maxRequestsPerIP[normalizedPlatform],
+      failedIPs: this.failedIPs[normalizedPlatform].size,
+      totalIPs: this.ipPools[normalizedPlatform].length,
+      workingIPs: this.ipPools[normalizedPlatform].length - this.failedIPs[normalizedPlatform].size
+    };
+  }
+}
+
+// 🌐 GLOBAL IP MANAGER
+const listFormatsIPManager = new UniversalIPRotationManager();
 
 export async function GET(request: NextRequest) {
   try {
@@ -1397,159 +2039,212 @@ export async function GET(request: NextRequest) {
     const platform = detectPlatform(url);
     console.log(`🎯 Processing ${platform} formats:`, url);
 
-    // 🔥 ANTI-DETECTION HEADERS & USER AGENTS
-    const userAgents = [
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
-      "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    ];
-    const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+    // 🔄 IP ROTATION CHECK
+    if (listFormatsIPManager.shouldRotateIP(platform)) {
+      listFormatsIPManager.rotateIP(platform);
+      
+      const rotationDelays: { [key: string]: number } = {
+        youtube: 5000, instagram: 3000, facebook: 4000, tiktok: 6000, generic: 2000
+      };
+      
+      const delay = rotationDelays[platform] || rotationDelays.generic;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    listFormatsIPManager.recordRequest(platform);
 
-    // 🎬 PLATFORM-SPECIFIC OPTIMIZATIONS
-    let command = buildPlatformCommand(platform, url, randomUA);
+    const currentIP = listFormatsIPManager.getCurrentIP(platform);
+    console.log(`🌐 Using IP for ${platform} formats: ${currentIP}`);
+
+    const command = buildPlatformCommandWithIP(platform, url, currentIP);
 
     try {
       const { stdout: jsonOutput } = await execAsync(command, {
-        timeout: 30000, // Extended timeout
-        maxBuffer: 1024 * 1024 * 20, // 20MB buffer
+        timeout: 45000,
+        maxBuffer: 1024 * 1024 * 30,
       });
 
       if (!jsonOutput || jsonOutput.trim() === "") {
         throw new Error("Empty response from extractor");
       }
 
-      const videoInfo = JSON.parse(jsonOutput.trim());
-      const allFormats = extractOptimizedFormats(
-        videoInfo.formats || [],
-        platform
-      );
+      const videoInfo: VideoInfo = JSON.parse(jsonOutput.trim());
+      const allFormats = extractOptimizedFormatsWithDuplicateCheck(videoInfo.formats || [], platform);
 
-      return NextResponse.json(
-        {
-          success: true,
-          title: videoInfo.title || "Unknown Title",
-          duration: formatDuration(videoInfo.duration),
-          thumbnail: getBestThumbnail(videoInfo),
-          uploader: videoInfo.uploader || videoInfo.channel || "Unknown",
-          view_count: formatNumber(videoInfo.view_count),
-          platform: platform,
-          formats: allFormats,
-          total_formats: allFormats.length,
-          extracted_at: Date.now(),
+      console.log(`✅ ${platform} formats extracted successfully with IP: ${currentIP} | Total: ${allFormats.length}`);
+      
+      listFormatsIPManager.recordIPSuccess(platform, currentIP);
+
+      return NextResponse.json({
+        success: true,
+        title: videoInfo.title || "Unknown Title",
+        duration: formatDuration(videoInfo.duration || null),
+        thumbnail: getBestThumbnail(videoInfo),
+        uploader: videoInfo.uploader || videoInfo.channel || "Unknown",
+        view_count: formatNumber(videoInfo.view_count || null),
+        platform: platform,
+        formats: allFormats,
+        total_formats: allFormats.length,
+        extracted_at: Date.now(),
+        ip_stats: listFormatsIPManager.getStats(platform)
+      }, {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, max-age=300",
         },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "Cache-Control": "public, max-age=300", // 5 min cache
-          },
-        }
-      );
-    } catch (execError: any) {
-      console.error(`💥 ${platform} extraction failed:`, execError.message);
+      });
 
-      // 🔄 FALLBACK STRATEGY
-      const fallbackResult = await attemptFallbackExtraction(
-        url,
-        platform,
-        randomUA
-      );
+    } catch (execError: any) {
+      console.error(`💥 ${platform} extraction failed with IP ${currentIP}:`, execError.message);
+      
+      const errorMessage = execError.message.toLowerCase();
+      if (errorMessage.includes('sign in') || errorMessage.includes('bot') || 
+          errorMessage.includes('rate-limit') || errorMessage.includes('login')) {
+        listFormatsIPManager.recordIPFailure(platform, currentIP);
+      }
+
+      const fallbackResult = await attemptIPRotationFallback(url, platform);
       if (fallbackResult.success) {
         return NextResponse.json(fallbackResult);
       }
 
-      return NextResponse.json(
-        {
-          success: false,
-          error: "extraction_failed",
-          message: `${platform} format extraction failed. Try again in few seconds.`,
-          platform: platform,
-        },
-        { status: 422 }
-      );
+      return NextResponse.json({
+        success: false,
+        error: "extraction_failed",
+        message: `${platform} format extraction failed. IP rotation in progress - try again.`,
+        platform: platform,
+        ip_stats: listFormatsIPManager.getStats(platform)
+      }, { status: 422 });
     }
+    
   } catch (error: any) {
     console.error("💀 Fatal error:", error.message);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "internal_error",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: false,
+      error: "internal_error",
+      message: error.message
+    }, { status: 500 });
   }
 }
 
-// 🔧 PLATFORM-SPECIFIC COMMAND BUILDER
-function buildPlatformCommand(
-  platform: string,
-  url: string,
-  userAgent: string
-): string {
+function buildPlatformCommandWithIP(platform: string, url: string, currentIP: string): string {
   let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
 
-  // Base settings for all platforms
-  command += ` --socket-timeout 30 --retries 3 --fragment-retries 3`;
-  command += ` --user-agent "${userAgent}"`;
+  command += ` --add-header "X-Forwarded-For:${currentIP}"`;
+  command += ` --add-header "CF-Connecting-IP:${currentIP}"`;
+  command += ` --add-header "X-Real-IP:${currentIP}"`;
+  command += ` --add-header "X-Originating-IP:${currentIP}"`;
+
+  command += ` --socket-timeout 180 --retries 15 --fragment-retries 12`;
+  command += ` --sleep-interval 4 --max-sleep-interval 15`;
+  command += ` --no-check-certificate --no-call-home`;
 
   switch (platform) {
+    case "youtube":
+      command += ` --extractor-args "youtube:player_client=web_embedded,android_creator,ios_music"`;
+      command += ` --extractor-args "youtube:player_skip=dash,hls,configs,webpage"`;
+      command += ` --extractor-args "youtube:skip=translated_subs,dash,hls"`;
+      command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`;
+      command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"`;
+      command += ` --add-header "Accept-Language:en-US,en;q=0.5"`;
+      break;
+
     case "instagram":
-      // 🔥 INSTAGRAM ANTI-DETECTION
+      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"`;
       command += ` --add-header "X-Instagram-AJAX:1"`;
       command += ` --add-header "X-Requested-With:XMLHttpRequest"`;
       command += ` --add-header "Accept:*/*"`;
       command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
       command += ` --add-header "Sec-Fetch-Dest:empty"`;
       command += ` --add-header "Sec-Fetch-Mode:cors"`;
-      command += ` --extractor-args "instagram:api_version=v1"`;
+      command += ` --add-header "Referer:https://www.instagram.com/"`;
       break;
 
     case "facebook":
-      // 🔥 FACEBOOK OPTIMIZATION
+      command += ` --user-agent "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"`;
       command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
       command += ` --add-header "Referer:https://www.facebook.com/"`;
       command += ` --add-header "Sec-Fetch-Dest:video"`;
       command += ` --add-header "Sec-Fetch-Mode:no-cors"`;
-      // Try mobile version for better access
-      if (url.includes("facebook.com")) {
-        url = url.replace("www.facebook.com", "m.facebook.com");
-      }
-      break;
-
-    case "youtube":
-      // 🔥 YOUTUBE MULTI-CLIENT BYPASS
-      command += ` --extractor-args "youtube:player_client=android,ios,web"`;
-      command += ` --extractor-args "youtube:player_skip=configs,webpage"`;
-      command += ` --extractor-args "youtube:skip=dash,hls"`;
-      // Additional bypass for age restrictions
-      command += ` --extractor-args "youtube:innertube_host=youtubei.googleapis.com"`;
+      command += ` --add-header "DNT:1"`;
       break;
 
     case "tiktok":
-      // 🔥 TIKTOK ANTI-BOT
+      command += ` --user-agent "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"`;
       command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"`;
-      command += ` --add-header "Accept-Encoding:gzip, deflate"`;
+      command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
       command += ` --add-header "DNT:1"`;
       command += ` --add-header "Connection:keep-alive"`;
-      command += ` --sleep-interval 2 --max-sleep-interval 5`;
+      command += ` --geo-bypass`;
+      break;
+
+    default:
+      command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`;
+      command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"`;
+      command += ` --add-header "Accept-Language:en-US,en;q=0.5"`;
+      command += ` --add-header "DNT:1"`;
+      command += ` --geo-bypass`;
       break;
   }
 
-  command += ` --geo-bypass "${url}"`;
+  command += ` "${url}"`;
   return command;
 }
 
-// 🔧 OPTIMIZED FORMAT EXTRACTOR
-function extractOptimizedFormats(formats: any[], platform: string) {
+async function attemptIPRotationFallback(url: string, platform: string) {
+  try {
+    listFormatsIPManager.rotateIP(platform);
+    const fallbackIP = listFormatsIPManager.getCurrentIP(platform);
+    
+    console.log(`🔄 Attempting fallback with fresh IP: ${fallbackIP}`);
+    
+    await new Promise(resolve => setTimeout(resolve, 8000));
+    
+    const fallbackCommand = buildPlatformCommandWithIP(platform, url, fallbackIP);
+    const { stdout: fallbackOutput } = await execAsync(fallbackCommand, {
+      timeout: 35000,
+      maxBuffer: 1024 * 1024 * 25,
+    });
+
+    if (fallbackOutput && fallbackOutput.trim()) {
+      const videoInfo: VideoInfo = JSON.parse(fallbackOutput.trim());
+      const formats = extractOptimizedFormatsWithDuplicateCheck(videoInfo.formats || [], platform);
+      
+      console.log(`✅ Fallback successful with IP: ${fallbackIP} | Total: ${formats.length}`);
+      
+      listFormatsIPManager.recordIPSuccess(platform, fallbackIP);
+      
+      return {
+        success: true,
+        title: videoInfo.title || "Video",
+        duration: formatDuration(videoInfo.duration || null),
+        thumbnail: getBestThumbnail(videoInfo),
+        uploader: videoInfo.uploader || videoInfo.channel || "Unknown",
+        view_count: formatNumber(videoInfo.view_count || null),
+        platform: platform,
+        formats: formats,
+        total_formats: formats.length,
+        extraction_method: "ip-rotation-fallback",
+        ip_stats: listFormatsIPManager.getStats(platform),
+        extracted_at: Date.now(),
+      };
+    }
+  } catch (error: any) {
+    console.log(`❌ IP rotation fallback also failed for ${platform}:`, error.message);
+  }
+
+  return { success: false };
+}
+
+function extractOptimizedFormatsWithDuplicateCheck(formats: any[], platform: string): ProcessedFormat[] {
   if (!Array.isArray(formats) || formats.length === 0) return [];
 
-  const uniqueMap = new Map();
-  const processed: any[] = [];
+  const uniqueMap = new Map<string, boolean>();
+  const seenCombinations = new Set<string>();
+  const processed: ProcessedFormat[] = [];
 
-  // Platform-specific sorting priorities
-  const sortedFormats = formats.sort((a, b) => {
+  const sortedFormats = formats.sort((a: any, b: any) => {
     if (platform === "instagram" || platform === "facebook") {
-      // Prioritize direct MP4 formats
       if (a.ext === "mp4" && b.ext !== "mp4") return -1;
       if (b.ext === "mp4" && a.ext !== "mp4") return 1;
     }
@@ -1557,31 +2252,55 @@ function extractOptimizedFormats(formats: any[], platform: string) {
     const aHeight = a.height || 0;
     const bHeight = b.height || 0;
     if (aHeight !== bHeight) return bHeight - aHeight;
-    return (b.tbr || 0) - (a.tbr || 0);
+    
+    return (b.tbr || b.vbr || 0) - (a.tbr || a.vbr || 0);
   });
 
   for (const format of sortedFormats) {
     if (!format || !format.format_id) continue;
 
-    // Skip problematic formats
     if (shouldSkipFormat(format, platform)) continue;
 
     const quality = getQualityLabel(format);
     const resolution = getResolution(format);
     const type = getFormatType(format);
-    const uniqueKey = `${quality}_${resolution}_${type}_${format.ext || "mp4"}`;
+    const ext = format.ext || "mp4";
+    const vcodec = format.vcodec === "none" ? null : (format.vcodec || "h264");
+    const acodec = format.acodec === "none" ? null : (format.acodec || "aac");
+    
+    if (uniqueMap.has(format.format_id)) continue;
+    
+    const basicKey = `${quality}_${resolution}_${type}_${ext}`;
+    if (seenCombinations.has(basicKey)) continue;
+    
+    const advancedKey = `${quality}_${resolution}_${type}_${ext}_${vcodec}_${acodec}`;
+    if (seenCombinations.has(advancedKey)) continue;
+    
+    if (format.height && format.width) {
+      const dimensionKey = `${format.height}x${format.width}_${ext}_${type}`;
+      if (seenCombinations.has(dimensionKey)) continue;
+      seenCombinations.add(dimensionKey);
+    }
+    
+    const formatBitrate = format.tbr || format.vbr || format.abr || 0;
+    if (formatBitrate > 0) {
+      const bitrateKey = `${quality}_${Math.floor(formatBitrate / 50) * 50}_${type}`;
+      if (seenCombinations.has(bitrateKey)) continue;
+      seenCombinations.add(bitrateKey);
+    }
 
-    if (uniqueMap.has(uniqueKey)) continue;
-    uniqueMap.set(uniqueKey, true);
+    uniqueMap.set(format.format_id, true);
+    seenCombinations.add(basicKey);
+    seenCombinations.add(advancedKey);
 
-    const processedFormat = {
+    const processedFormat: ProcessedFormat = {
       format_id: format.format_id,
-      ext: format.ext || "mp4",
+      ext: ext,
       quality: quality,
       resolution: resolution,
       filesize: getFileSize(format.filesize || format.filesize_approx),
-      vcodec: format.vcodec === "none" ? null : format.vcodec || "h264",
-      acodec: format.acodec === "none" ? null : format.acodec || "aac",
+      vcodec: vcodec,
+      acodec: acodec,
       fps: format.fps || null,
       tbr: Math.round(format.tbr || 0),
       vbr: Math.round(format.vbr || 0),
@@ -1591,78 +2310,36 @@ function extractOptimizedFormats(formats: any[], platform: string) {
       protocol: format.protocol || "https",
       height: format.height || null,
       width: format.width || null,
-      url: format.url || null, // Important for direct access
+      language: format.language || null,
+      dynamic_range: format.dynamic_range || null
     };
 
     processed.push(processedFormat);
+
+    if (processed.length >= 25) break;
   }
 
-  return processed.slice(0, 30); // Return top 30 formats
+  console.log(`🔍 Format extraction: ${formats.length} raw → ${processed.length} unique`);
+  return processed;
 }
 
-// 🔄 FALLBACK EXTRACTION
-async function attemptFallbackExtraction(
-  url: string,
-  platform: string,
-  userAgent: string
-) {
-  try {
-    // Try with format listing approach
-    const listCommand = `yt-dlp --list-formats --no-warnings --user-agent "${userAgent}" "${url}"`;
-    const { stdout: listOutput } = await execAsync(listCommand, {
-      timeout: 20000,
-      maxBuffer: 1024 * 1024 * 10,
-    });
-
-    if (listOutput) {
-      const parsedFormats = parseFormatListAdvanced(listOutput, platform);
-      if (parsedFormats.length > 0) {
-        return {
-          success: true,
-          title: "Video",
-          duration: "",
-          thumbnail: "",
-          uploader: "Unknown",
-          platform: platform,
-          formats: parsedFormats,
-          total_formats: parsedFormats.length,
-          extraction_method: "fallback-list",
-          extracted_at: Date.now(),
-        };
-      }
-    }
-  } catch (error) {
-    console.log(`Fallback also failed for ${platform}`);
-  }
-
-  return { success: false };
-}
-
-function shouldSkipFormat(format: any, platform: string): boolean {
-  // Skip MHTML and very low quality formats
-  if (format.ext === "mhtml") return true;
-  if (format.protocol === "m3u8_native" && format.tbr && format.tbr < 100)
-    return true;
-
-  // Platform specific skips
-  if (platform === "instagram" || platform === "facebook") {
-    // Skip formats without direct URLs for social media
-    if (!format.url && !format.fragment_base_url) return true;
-  }
-
-  return false;
-}
-
-// ... (Other helper functions remain same but optimized)
 function detectPlatform(url: string): string {
   const cleanUrl = url.toLowerCase();
   if (cleanUrl.includes("instagram.com")) return "instagram";
-  if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be"))
-    return "youtube";
+  if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be")) return "youtube";
   if (cleanUrl.includes("tiktok.com")) return "tiktok";
-  if (cleanUrl.includes("facebook.com") || cleanUrl.includes("fb.watch"))
-    return "facebook";
+  if (cleanUrl.includes("facebook.com") || cleanUrl.includes("fb.watch")) return "facebook";
   return "generic";
+}
+
+function shouldSkipFormat(format: any, platform: string): boolean {
+  if (format.ext === "mhtml") return true;
+  if (format.protocol === "m3u8_native" && format.tbr && format.tbr < 50) return true;
+  if ((platform === "instagram" || platform === "facebook") && 
+      !format.url && !format.fragment_base_url) return true;
+  if (format.vcodec === "none" && format.abr && format.abr < 32) return true;
+  if (format.height && format.height < 144) return true;
+  return false;
 }
 
 function getQualityLabel(format: any): string {
@@ -1673,32 +2350,38 @@ function getQualityLabel(format: any): string {
     if (format.height >= 720) return "720p";
     if (format.height >= 480) return "480p";
     if (format.height >= 360) return "360p";
+    if (format.height >= 240) return "240p";
     return `${format.height}p`;
   }
-  if (format.format_note) return format.format_note;
-  if (format.abr) return `${format.abr}kbps`;
+  if (format.format_note && format.format_note !== "Default") return format.format_note;
+  if (format.abr && format.vcodec === "none") return `${format.abr}kbps`;
+  if (format.tbr) return `${Math.round(format.tbr)}kbps`;
   return "default";
 }
 
 function getResolution(format: any): string {
   if (format.height && format.width) return `${format.width}x${format.height}`;
-  if (format.height)
-    return `${Math.round((format.height * 16) / 9)}x${format.height}`;
+  if (format.height) return `${Math.round((format.height * 16) / 9)}x${format.height}`;
+  if (format.width) return `${format.width}x${Math.round((format.width * 9) / 16)}`;
   return "audio";
 }
 
-function getFileSize(size: number | null): string {
+function getFileSize(size: number | null | undefined): string {
   if (!size || size <= 0) return "unknown";
   const gb = size / (1024 * 1024 * 1024);
   const mb = size / (1024 * 1024);
+  const kb = size / 1024;
+  
   if (gb >= 1) return `${gb.toFixed(1)}GB`;
   if (mb >= 1) return `${mb.toFixed(1)}MB`;
-  return `${(size / 1024).toFixed(0)}KB`;
+  if (kb >= 1) return `${kb.toFixed(0)}KB`;
+  return `${size}B`;
 }
 
 function getFormatType(format: any): string {
   const hasVideo = format.vcodec && format.vcodec !== "none";
   const hasAudio = format.acodec && format.acodec !== "none";
+  
   if (hasVideo && hasAudio) return "video+audio";
   if (hasVideo) return "video";
   if (hasAudio) return "audio";
@@ -1706,91 +2389,43 @@ function getFormatType(format: any): string {
 }
 
 function formatDuration(seconds: number | null): string {
-  if (!seconds) return "";
+  if (!seconds || seconds <= 0) return "";
+  
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
+  
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
-      .toString()
-      .padStart(2, "0")}`;
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
 function formatNumber(num: number | null): string {
-  if (!num) return "";
+  if (!num || num <= 0) return "";
+  
   if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
   return num.toLocaleString();
 }
 
-function getBestThumbnail(data: any): string {
+function getBestThumbnail(data: VideoInfo): string {
   if (data.thumbnail) return data.thumbnail;
-  if (data.thumbnails && Array.isArray(data.thumbnails)) {
-    const best = data.thumbnails
-      .filter((t) => t && t.url)
-      .sort(
-        (a, b) =>
-          (b.width || 0) * (b.height || 0) - (a.width || 0) * (a.height || 0)
-      )[0];
-    return best?.url || "";
-  }
-  return "";
-}
-
-function parseFormatListAdvanced(listOutput: string, platform: string) {
-  const lines = listOutput.split("\n");
-  const formats: any[] = [];
-
-  for (const line of lines) {
-    if (line.includes("mp4") || line.includes("webm") || line.includes("m4a")) {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length >= 3) {
-        const formatId = parts[0];
-        const ext = parts[1] || "mp4";
-        const quality = parts[2] || "unknown";
-
-        let resolution = "audio";
-        let height = null;
-
-        const resMatch = line.match(/(\d+)x(\d+)/);
-        if (resMatch) {
-          resolution = `${resMatch[1]}x${resMatch[2]}`;
-          height = parseInt(resMatch[2]);
-        } else {
-          const heightMatch = line.match(/(\d+)p/);
-          if (heightMatch) {
-            height = parseInt(heightMatch[1]);
-            resolution = `${Math.round((height * 16) / 9)}x${height}`;
-          }
-        }
-
-        formats.push({
-          format_id: formatId,
-          ext: ext,
-          quality: height ? `${height}p` : quality,
-          resolution: resolution,
-          filesize: "unknown",
-          vcodec: ext === "m4a" ? null : "h264",
-          acodec: line.includes("video only") ? null : "aac",
-          fps: null,
-          tbr: 0,
-          type: getFormatTypeFromExt(ext, line),
-          note: "",
-          protocol: "https",
-          height: height,
-        });
-      }
+  
+  if (data.thumbnails && Array.isArray(data.thumbnails) && data.thumbnails.length > 0) {
+    const validThumbnails = data.thumbnails
+      .filter((t: any) => t && t.url && typeof t.url === 'string')
+      .sort((a: any, b: any) => {
+        const aArea = (a.width || 0) * (a.height || 0);
+        const bArea = (b.width || 0) * (b.height || 0);
+        return bArea - aArea;
+      });
+    
+    if (validThumbnails.length > 0) {
+      return validThumbnails[0].url;
     }
   }
-
-  return formats.sort((a, b) => (b.height || 0) - (a.height || 0));
-}
-
-function getFormatTypeFromExt(ext: string, line: string): string {
-  if (ext === "m4a" || line.includes("audio only")) return "audio";
-  if (line.includes("video only")) return "video";
-  return "video+audio";
+  
+  return "";
 }
