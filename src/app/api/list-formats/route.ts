@@ -1813,654 +1813,804 @@ export async function GET(request: NextRequest) {
     }
 
     const platform = detectPlatform(url);
-    console.log(`🎯 Processing ${platform} for ALL QUALITIES:`, url);
+    console.log(`🎯 Processing ${platform} with ADVANCED bypass methods:`, url);
 
-    // 🔥 TRY MULTIPLE HIGH-QUALITY EXTRACTION METHODS
-    const methods = [
-      () => tryHighQualityMethod(url, platform),
-      () => tryMobileHighQuality(url, platform),
-      () => tryAlternativeHighQuality(url, platform),
-      () => tryEmbeddedHighQuality(url, platform),
-      () => tryDirectHighQuality(url, platform),
-    ];
+    // 🔥 PLATFORM-SPECIFIC BYPASS STRATEGIES
+    const methods = platform === "instagram" ? 
+      getInstagramBypassMethods(url) : 
+      platform === "youtube" ? 
+      getYouTubeBypassMethods(url) :
+      platform === "tiktok" ?
+      getTikTokBypassMethods(url) :
+      platform === "facebook" ?
+      getFacebookBypassMethods(url) :
+      getGenericBypassMethods(url);
 
     for (let i = 0; i < methods.length; i++) {
       try {
-        console.log(`🔄 Trying high-quality method ${i + 1} for ${platform}`);
+        console.log(`🔄 Trying ${platform} bypass method ${i + 1}/${methods.length}`);
         const result = await methods[i]();
-
-        if (result.success && result.formats.length > 0) {
-          console.log(
-            `✅ Success with method ${i + 1}: ${
-              result.formats.length
-            } formats found`
-          );
+        
+        if (result.success && result.formats && result.formats.length > 0) {
+          console.log(`✅ SUCCESS with method ${i + 1}: ${result.formats.length} formats`);
           return NextResponse.json(result);
         }
-      } catch (error) {
-        console.log(`❌ Method ${i + 1} failed: ${error.message}`);
+      } catch (error: any) {
+        console.log(`❌ Method ${i + 1} failed: ${error.message.substring(0, 100)}...`);
+        
+        // Add delay between attempts for rate-limited platforms
+        if (platform === "instagram" || platform === "facebook") {
+          await new Promise(resolve => setTimeout(resolve, (i + 1) * 2000));
+        }
         continue;
       }
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: "all_methods_failed",
-        message: `All high-quality extraction methods failed for ${platform}`,
-      },
-      { status: 422 }
-    );
+    return NextResponse.json({
+      success: false,
+      error: "all_bypass_methods_failed",
+      message: `All ${platform} bypass methods failed. Platform has updated protection.`,
+      platform: platform,
+      attempted_methods: methods.length
+    }, { status: 422 });
+
   } catch (error: any) {
     console.error("💀 Fatal error:", error.message);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "internal_error",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: false,
+      error: "internal_error"
+    }, { status: 500 });
   }
 }
 
-// 🔥 METHOD 1: HIGH-QUALITY FOCUSED EXTRACTION
-async function tryHighQualityMethod(url: string, platform: string) {
-  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+// 🔥 INSTAGRAM-SPECIFIC BYPASS METHODS
+function getInstagramBypassMethods(url: string) {
+  return [
+    () => tryInstagramEmbedded(url),
+    () => tryInstagramMobile(url), 
+    () => tryInstagramAPI(url),
+    () => tryInstagramAlternative(url),
+    () => tryInstagramMinimal(url),
+    () => tryInstagramBrowser(url),
+    () => tryInstagramDirect(url)
+  ];
+}
 
-  // High-quality optimized settings
-  command += ` --socket-timeout 90 --retries 10 --fragment-retries 8`;
-  command += ` --sleep-interval 3 --max-sleep-interval 10`;
+// 🔥 METHOD 1: INSTAGRAM EMBEDDED BYPASS
+async function tryInstagramEmbedded(url: string) {
+  // Extract post ID and use embedded endpoint
+  const postId = extractInstagramPostId(url);
+  if (!postId) throw new Error("Cannot extract post ID");
+
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 45 --retries 6 --fragment-retries 4`;
+  command += ` --sleep-interval 3 --max-sleep-interval 8`;
   command += ` --no-check-certificate --no-call-home`;
-
-  switch (platform) {
-    case "youtube":
-      // 🔥 BEST QUALITY YOUTUBE EXTRACTION
-      command += ` --extractor-args "youtube:player_client=web_embedded,android_creator,ios_music"`;
-      command += ` --extractor-args "youtube:player_skip=dash,hls,configs,webpage"`;
-      command += ` --extractor-args "youtube:skip=translated_subs"`;
-      // Include all formats, not just best
-      command += ` --format "all[height<=2160]"`;
-      command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`;
-      break;
-
-    case "instagram":
-      // 🔥 HIGH-QUALITY INSTAGRAM EXTRACTION
-      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"`;
-      command += ` --add-header "X-Instagram-AJAX:1"`;
-      command += ` --add-header "X-Requested-With:XMLHttpRequest"`;
-      command += ` --add-header "Accept:*/*"`;
-      command += ` --format "all"`;
-      break;
-
-    case "facebook":
-      // 🔥 HIGH-QUALITY FACEBOOK EXTRACTION
-      const mobileUrl = url.replace("www.facebook.com", "m.facebook.com");
-      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"`;
-      command += ` --format "all[height<=1080]"`;
-      url = mobileUrl;
-      break;
-
-    case "tiktok":
-      // 🔥 HIGH-QUALITY TIKTOK EXTRACTION
-      command += ` --user-agent "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"`;
-      command += ` --format "all[height<=1080]"`;
-      command += ` --geo-bypass`;
-      break;
-
-    default:
-      command += ` --format "all[height<=2160]"`;
-      command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"`;
-      break;
-  }
-
-  command += ` "${url}"`;
-
-  const { stdout } = await execAsync(command, {
-    timeout: 60000,
-    maxBuffer: 1024 * 1024 * 100, // 100MB buffer for high quality
-  });
-
-  if (stdout && stdout.trim()) {
-    const data = JSON.parse(stdout.trim());
-    const allFormats = extractAllQualityFormats(data.formats || [], platform);
-
-    console.log(`🎯 Extracted ${allFormats.length} high-quality formats`);
-
-    return {
-      success: true,
-      method: "high-quality",
-      title: data.title || "Video",
-      duration: formatDuration(data.duration),
-      thumbnail: getBestThumbnail(data),
-      uploader: data.uploader || data.channel || "Unknown",
-      view_count: formatNumber(data.view_count),
-      platform: platform,
-      formats: allFormats,
-      total_formats: allFormats.length,
-      available_qualities: getAvailableQualities(allFormats),
-      extracted_at: Date.now(),
-    };
-  }
-
-  throw new Error("Empty high-quality response");
-}
-
-// 🔥 METHOD 2: MOBILE HIGH-QUALITY EXTRACTION
-async function tryMobileHighQuality(url: string, platform: string) {
-  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
-
-  command += ` --socket-timeout 60 --retries 8 --fragment-retries 6`;
-  command += ` --no-check-certificate`;
-
-  switch (platform) {
-    case "youtube":
-      // 🔥 iOS MUSIC HIGH QUALITY
-      command += ` --extractor-args "youtube:player_client=ios_music,android_creator"`;
-      command += ` --format "all[height<=2160]"`;
-      command += ` --user-agent "com.google.ios.youtubemusic/4.32.1 (iPhone; U; CPU iPhone OS 17_0 like Mac OS X)"`;
-      break;
-
-    case "instagram":
-      // 🔥 ANDROID APP HIGH QUALITY
-      command += ` --user-agent "Instagram 275.0.0.27.98 Android (30/11; 560dpi; 1440x2560; samsung; SM-G973F; beyond1lte; qcom; en_US; 426871330)"`;
-      command += ` --format "all"`;
-      break;
-
-    case "facebook":
-      command += ` --format "all[height<=1080]"`;
-      command += ` --user-agent "Mozilla/5.0 (Mobile; rv:40.0) Gecko/40.0 Firefox/40.0"`;
-      break;
-
-    case "tiktok":
-      command += ` --format "all[height<=1080]"`;
-      command += ` --user-agent "TikTok 26.2.0 rv:262018 (iPhone; iOS 17.0; en_US) Cronet"`;
-      break;
-  }
-
-  command += ` "${url}"`;
-
-  const { stdout } = await execAsync(command, {
-    timeout: 45000,
-    maxBuffer: 1024 * 1024 * 80,
-  });
-
-  if (stdout && stdout.trim()) {
-    const data = JSON.parse(stdout.trim());
-    const allFormats = extractAllQualityFormats(data.formats || [], platform);
-
-    return {
-      success: true,
-      method: "mobile-high-quality",
-      title: data.title || "Video",
-      duration: formatDuration(data.duration),
-      thumbnail: getBestThumbnail(data),
-      uploader: data.uploader || "Unknown",
-      platform: platform,
-      formats: allFormats,
-      total_formats: allFormats.length,
-      available_qualities: getAvailableQualities(allFormats),
-    };
-  }
-
-  throw new Error("Empty mobile high-quality response");
-}
-
-// 🔥 METHOD 3: ALTERNATIVE HIGH-QUALITY
-async function tryAlternativeHighQuality(url: string, platform: string) {
-  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
-
-  command += ` --socket-timeout 45 --retries 6`;
-  command += ` --no-check-certificate --flat-playlist`;
-
-  switch (platform) {
-    case "youtube":
-      // 🔥 ANDROID CREATOR HIGH QUALITY
-      command += ` --extractor-args "youtube:player_client=android_creator,web_embedded"`;
-      command += ` --format "all[height<=4320]"`; // Include 8K if available
-      command += ` --user-agent "Mozilla/5.0 (Linux; Android 11; SM-G975F) AppleWebKit/537.36"`;
-      break;
-
-    case "instagram":
-      command += ` --format "all"`;
-      command += ` --user-agent "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`;
-      break;
-
-    default:
-      command += ` --format "all[height<=2160]"`;
-      break;
-  }
-
-  command += ` "${url}"`;
+  
+  // 🔥 EMBEDDED USER AGENT (Less Detectable)
+  command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"`;
+  
+  // 🔥 INSTAGRAM EMBEDDED HEADERS
+  command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"`;
+  command += ` --add-header "Accept-Language:en-US,en;q=0.5"`;
+  command += ` --add-header "Accept-Encoding:gzip, deflate, br"`;
+  command += ` --add-header "DNT:1"`;
+  command += ` --add-header "Connection:keep-alive"`;
+  command += ` --add-header "Upgrade-Insecure-Requests:1"`;
+  command += ` --add-header "Sec-Fetch-Dest:document"`;
+  command += ` --add-header "Sec-Fetch-Mode:navigate"`;
+  command += ` --add-header "Sec-Fetch-Site:none"`;
+  
+  // Try embedded URL format
+  const embeddedUrl = `https://www.instagram.com/p/${postId}/embed/`;
+  command += ` "${embeddedUrl}"`;
 
   const { stdout } = await execAsync(command, {
     timeout: 35000,
-    maxBuffer: 1024 * 1024 * 60,
+    maxBuffer: 1024 * 1024 * 50
   });
 
-  if (stdout && stdout.trim()) {
-    const data = JSON.parse(stdout.trim());
-    const allFormats = extractAllQualityFormats(data.formats || [], platform);
-
-    return {
-      success: true,
-      method: "alternative-high-quality",
-      title: data.title || "Video",
-      duration: formatDuration(data.duration),
-      thumbnail: getBestThumbnail(data),
-      uploader: data.uploader || "Unknown",
-      platform: platform,
-      formats: allFormats,
-      total_formats: allFormats.length,
-      available_qualities: getAvailableQualities(allFormats),
-    };
-  }
-
-  throw new Error("Empty alternative response");
+  return processInstagramResponse(stdout, "instagram-embedded");
 }
 
-// 🔥 METHOD 4: EMBEDDED HIGH-QUALITY
-async function tryEmbeddedHighQuality(url: string, platform: string) {
+// 🔥 METHOD 2: INSTAGRAM MOBILE BYPASS
+async function tryInstagramMobile(url: string) {
   let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
-  command += ` --socket-timeout 30 --retries 4`;
-
-  if (platform === "youtube") {
-    // 🔥 EMBEDDED PLAYER HIGH QUALITY
-    command += ` --extractor-args "youtube:player_client=web_embedded"`;
-    command += ` --format "all[height<=2160]"`;
-    command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"`;
-  } else {
-    command += ` --format "all"`;
-  }
-
+  command += ` --socket-timeout 30 --retries 4 --fragment-retries 3`;
+  command += ` --sleep-interval 4 --max-sleep-interval 10`;
+  command += ` --no-check-certificate`;
+  
+  // 🔥 ANDROID INSTAGRAM APP USER AGENT
+  command += ` --user-agent "Instagram 302.0.0.41.105 Android (33/13; 420dpi; 1080x2340; samsung; SM-G991B; o1s; qcom; en_US; 509880657)"`;
+  
+  // 🔥 MOBILE APP HEADERS
+  command += ` --add-header "X-IG-App-ID:936619743392459"`;
+  command += ` --add-header "X-IG-WWW-Claim:0"`;
+  command += ` --add-header "X-Instagram-AJAX:1"`;
+  command += ` --add-header "X-Requested-With:XMLHttpRequest"`;
+  command += ` --add-header "Accept:*/*"`;
+  command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
+  
   command += ` "${url}"`;
 
   const { stdout } = await execAsync(command, {
     timeout: 25000,
-    maxBuffer: 1024 * 1024 * 40,
+    maxBuffer: 1024 * 1024 * 40
   });
 
-  if (stdout && stdout.trim()) {
-    const data = JSON.parse(stdout.trim());
-    const allFormats = extractAllQualityFormats(data.formats || [], platform);
-
-    return {
-      success: true,
-      method: "embedded-high-quality",
-      title: data.title || "Video",
-      duration: formatDuration(data.duration),
-      thumbnail: getBestThumbnail(data),
-      uploader: data.uploader || "Unknown",
-      platform: platform,
-      formats: allFormats,
-      total_formats: allFormats.length,
-      available_qualities: getAvailableQualities(allFormats),
-    };
-  }
-
-  throw new Error("Empty embedded response");
+  return processInstagramResponse(stdout, "instagram-mobile");
 }
 
-// 🔥 METHOD 5: DIRECT HIGH-QUALITY
-async function tryDirectHighQuality(url: string, platform: string) {
-  let command = `yt-dlp --dump-single-json --no-warnings --quiet --no-check-certificate`;
-  command += ` --socket-timeout 20 --retries 2`;
+// 🔥 METHOD 3: INSTAGRAM API BYPASS
+async function tryInstagramAPI(url: string) {
+  const postId = extractInstagramPostId(url);
+  if (!postId) throw new Error("Cannot extract post ID");
 
-  if (platform === "youtube") {
-    command += ` --extractor-args "youtube:player_client=web"`;
-  }
-
-  command += ` --format "all"`;
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 25 --retries 3`;
+  command += ` --no-check-certificate --flat-playlist`;
+  
+  // 🔥 API-STYLE USER AGENT
+  command += ` --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`;
+  
+  // 🔥 API HEADERS
+  command += ` --add-header "Accept:application/json, text/plain, */*"`;
+  command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
+  command += ` --add-header "Cache-Control:no-cache"`;
+  command += ` --add-header "Pragma:no-cache"`;
+  
   command += ` "${url}"`;
 
   const { stdout } = await execAsync(command, {
     timeout: 20000,
-    maxBuffer: 1024 * 1024 * 30,
+    maxBuffer: 1024 * 1024 * 30
   });
 
-  if (stdout && stdout.trim()) {
-    const data = JSON.parse(stdout.trim());
-    const allFormats = extractAllQualityFormats(data.formats || [], platform);
-
-    return {
-      success: true,
-      method: "direct-high-quality",
-      title: data.title || "Video",
-      duration: formatDuration(data.duration),
-      thumbnail: getBestThumbnail(data),
-      uploader: data.uploader || "Unknown",
-      platform: platform,
-      formats: allFormats,
-      total_formats: allFormats.length,
-      available_qualities: getAvailableQualities(allFormats),
-    };
-  }
-
-  throw new Error("Empty direct response");
+  return processInstagramResponse(stdout, "instagram-api");
 }
 
-// 🎯 EXTRACT ALL QUALITY FORMATS (NO LIMITS)
+// 🔥 METHOD 4: INSTAGRAM ALTERNATIVE BYPASS
+async function tryInstagramAlternative(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 20 --retries 2`;
+  command += ` --no-check-certificate`;
+  
+  // 🔥 OLD BROWSER USER AGENT (Less Suspicious)
+  command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"`;
+  
+  // 🔥 BASIC HEADERS ONLY
+  command += ` --add-header "Accept:text/html,application/xhtml+xml"`;
+  command += ` --add-header "Accept-Language:en-US,en;q=0.5"`;
+  
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 18000,
+    maxBuffer: 1024 * 1024 * 25
+  });
+
+  return processInstagramResponse(stdout, "instagram-alternative");
+}
+
+// 🔥 METHOD 5: INSTAGRAM MINIMAL BYPASS
+async function tryInstagramMinimal(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --quiet`;
+  command += ` --socket-timeout 15 --retries 1`;
+  command += ` --no-check-certificate`;
+  
+  // 🔥 MINIMAL APPROACH
+  command += ` --user-agent "curl/7.68.0"`;
+  
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 12000,
+    maxBuffer: 1024 * 1024 * 20
+  });
+
+  return processInstagramResponse(stdout, "instagram-minimal");
+}
+
+// 🔥 METHOD 6: INSTAGRAM BROWSER SIMULATION
+async function tryInstagramBrowser(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 40 --retries 5`;
+  command += ` --sleep-interval 2 --max-sleep-interval 6`;
+  command += ` --no-check-certificate`;
+  
+  // 🔥 FIREFOX BROWSER SIMULATION
+  command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0"`;
+  
+  // 🔥 FIREFOX-SPECIFIC HEADERS
+  command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"`;
+  command += ` --add-header "Accept-Language:en-US,en;q=0.5"`;
+  command += ` --add-header "Accept-Encoding:gzip, deflate, br"`;
+  command += ` --add-header "DNT:1"`;
+  command += ` --add-header "Connection:keep-alive"`;
+  command += ` --add-header "Upgrade-Insecure-Requests:1"`;
+  command += ` --add-header "Sec-Fetch-Dest:document"`;
+  command += ` --add-header "Sec-Fetch-Mode:navigate"`;
+  command += ` --add-header "TE:trailers"`;
+  
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 30000,
+    maxBuffer: 1024 * 1024 * 35
+  });
+
+  return processInstagramResponse(stdout, "instagram-browser");
+}
+
+// 🔥 METHOD 7: INSTAGRAM DIRECT BYPASS
+async function tryInstagramDirect(url: string) {
+  let command = `yt-dlp --list-formats --no-warnings --quiet`;
+  command += ` --socket-timeout 10 --retries 1`;
+  command += ` --user-agent "wget/1.20.3"`;
+  
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 8000,
+    maxBuffer: 1024 * 1024 * 10
+  });
+
+  if (stdout && stdout.includes('mp4')) {
+    const formats = parseFormatList(stdout, "instagram");
+    
+    if (formats.length > 0) {
+      return {
+        success: true,
+        method: "instagram-direct",
+        title: "Instagram Video",
+        duration: "",
+        thumbnail: "",
+        uploader: "Instagram User",
+        platform: "instagram",
+        formats: formats,
+        total_formats: formats.length,
+        available_qualities: getAvailableQualities(formats)
+      };
+    }
+  }
+
+  throw new Error("Direct method failed");
+}
+
+// 🔥 YOUTUBE BYPASS METHODS
+function getYouTubeBypassMethods(url: string) {
+  return [
+    () => tryYouTubeEmbedded(url),
+    () => tryYouTubeMobile(url),
+    () => tryYouTubeAlternative(url),
+    () => tryYouTubeDirect(url)
+  ];
+}
+
+// 🔥 YOUTUBE EMBEDDED METHOD
+async function tryYouTubeEmbedded(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 45 --retries 6 --fragment-retries 4`;
+  command += ` --sleep-interval 2 --max-sleep-interval 8`;
+  command += ` --no-check-certificate --no-call-home`;
+  
+  // 🔥 YOUTUBE EMBEDDED BYPASS (2025 Working)
+  command += ` --extractor-args "youtube:player_client=web_embedded"`;
+  command += ` --extractor-args "youtube:player_skip=configs,webpage"`;
+  
+  // 🔥 EMBEDDED-FRIENDLY USER AGENT
+  command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"`;
+  
+  // 🔥 ANTI-DETECTION HEADERS
+  command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"`;
+  command += ` --add-header "Accept-Language:en-US,en;q=0.5"`;
+  command += ` --add-header "DNT:1"`;
+  command += ` --add-header "Connection:keep-alive"`;
+  
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 40000,
+    maxBuffer: 1024 * 1024 * 80
+  });
+
+  return processYouTubeResponse(stdout, "youtube-embedded");
+}
+
+// 🔥 YOUTUBE MOBILE METHOD
+async function tryYouTubeMobile(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 35 --retries 4`;
+  command += ` --no-check-certificate`;
+  
+  // 🔥 iOS MUSIC CLIENT (High Success Rate)
+  command += ` --extractor-args "youtube:player_client=ios_music"`;
+  
+  // 🔥 iOS USER AGENT
+  command += ` --user-agent "com.google.ios.youtubemusic/4.32.1 (iPhone; U; CPU iPhone OS 17_0 like Mac OS X)"`;
+  
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 30000,
+    maxBuffer: 1024 * 1024 * 60
+  });
+
+  return processYouTubeResponse(stdout, "youtube-mobile");
+}
+
+// 🔥 YOUTUBE ALTERNATIVE METHOD
+async function tryYouTubeAlternative(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 25 --retries 3`;
+  command += ` --no-check-certificate`;
+  
+  // 🔥 ANDROID CREATOR CLIENT
+  command += ` --extractor-args "youtube:player_client=android_creator"`;
+  
+  command += ` --user-agent "Mozilla/5.0 (Linux; Android 11; SM-G975F) AppleWebKit/537.36"`;
+  
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 22000,
+    maxBuffer: 1024 * 1024 * 40
+  });
+
+  return processYouTubeResponse(stdout, "youtube-alternative");
+}
+
+// 🔥 YOUTUBE DIRECT METHOD
+async function tryYouTubeDirect(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --quiet`;
+  command += ` --socket-timeout 15 --retries 1`;
+  command += ` --no-check-certificate`;
+  
+  // 🔥 BASIC WEB CLIENT
+  command += ` --extractor-args "youtube:player_client=web"`;
+  
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 12000,
+    maxBuffer: 1024 * 1024 * 30
+  });
+
+  return processYouTubeResponse(stdout, "youtube-direct");
+}
+
+// 🔥 TIKTOK BYPASS METHODS
+function getTikTokBypassMethods(url: string) {
+  return [
+    () => tryTikTokMobile(url),
+    () => tryTikTokDesktop(url),
+    () => tryTikTokAlternative(url)
+  ];
+}
+
+// 🔥 FACEBOOK BYPASS METHODS  
+function getFacebookBypassMethods(url: string) {
+  return [
+    () => tryFacebookMobile(url),
+    () => tryFacebookBasic(url),
+    () => tryFacebookAlternative(url)
+  ];
+}
+
+// 🔥 GENERIC BYPASS METHODS
+function getGenericBypassMethods(url: string) {
+  return [
+    () => tryGenericStandard(url),
+    () => tryGenericMobile(url),
+    () => tryGenericMinimal(url)
+  ];
+}
+
+// 🔧 HELPER FUNCTIONS
+function extractInstagramPostId(url: string): string | null {
+  const match = url.match(/\/p\/([A-Za-z0-9_-]+)/);
+  return match ? match[1] : null;
+}
+
+function processInstagramResponse(stdout: string, method: string) {
+  if (!stdout || !stdout.trim()) {
+    throw new Error("Empty response");
+  }
+
+  const data = JSON.parse(stdout.trim());
+  const formats = extractAllQualityFormats(data.formats || [], "instagram");
+  
+  if (formats.length === 0) {
+    throw new Error("No formats found");
+  }
+
+  return {
+    success: true,
+    method: method,
+    title: data.title || "Instagram Video",
+    duration: formatDuration(data.duration),
+    thumbnail: getBestThumbnail(data),
+    uploader: data.uploader || "Instagram User",
+    view_count: formatNumber(data.view_count),
+    platform: "instagram",
+    formats: formats,
+    total_formats: formats.length,
+    available_qualities: getAvailableQualities(formats),
+    extracted_at: Date.now()
+  };
+}
+
+function processYouTubeResponse(stdout: string, method: string) {
+  if (!stdout || !stdout.trim()) {
+    throw new Error("Empty response");
+  }
+
+  const data = JSON.parse(stdout.trim());
+  const formats = extractAllQualityFormats(data.formats || [], "youtube");
+  
+  if (formats.length === 0) {
+    throw new Error("No formats found");
+  }
+
+  return {
+    success: true,
+    method: method,
+    title: data.title || "YouTube Video",
+    duration: formatDuration(data.duration),
+    thumbnail: getBestThumbnail(data),
+    uploader: data.uploader || data.channel || "YouTube User",
+    view_count: formatNumber(data.view_count),
+    platform: "youtube",
+    formats: formats,
+    total_formats: formats.length,
+    available_qualities: getAvailableQualities(formats),
+    extracted_at: Date.now()
+  };
+}
+
+function parseFormatList(output: string, platform: string): any[] {
+  const lines = output.split('\n');
+  const formats: any[] = [];
+  
+  for (const line of lines) {
+    if (line.includes('mp4') || line.includes('webm') || line.includes('m4a')) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 3) {
+        const formatId = parts[0];
+        const ext = parts[1] || "mp4";
+        const quality = parts[2] || "unknown";
+
+        let height = null;
+        const heightMatch = line.match(/(\d+)p/);
+        if (heightMatch) {
+          height = parseInt(heightMatch[1]);
+        }
+
+        formats.push({
+          format_id: formatId,
+          ext: ext,
+          quality: height ? `${height}p` : quality,
+          resolution: height ? `${Math.round((height * 16) / 9)}x${height}` : "unknown",
+          filesize: "unknown",
+          vcodec: ext === "m4a" ? null : "h264",
+          acodec: line.includes("video only") ? null : "aac",
+          fps: null,
+          tbr: 0,
+          type: getFormatType({ vcodec: ext === "m4a" ? null : "h264", acodec: line.includes("video only") ? null : "aac" }),
+          height: height,
+          width: height ? Math.round((height * 16) / 9) : null,
+          quality_rank: height || 1
+        });
+      }
+    }
+  }
+  
+  return formats.sort((a, b) => (b.quality_rank || 0) - (a.quality_rank || 0));
+}
+
+// Keep all existing helper functions (detectPlatform, extractAllQualityFormats, etc.)
+function detectPlatform(url: string): string {
+  const cleanUrl = url.toLowerCase();
+  if (cleanUrl.includes("instagram.com")) return "instagram";
+  if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be")) return "youtube";
+  if (cleanUrl.includes("tiktok.com")) return "tiktok";
+  if (cleanUrl.includes("facebook.com") || cleanUrl.includes("fb.watch")) return "facebook";
+  return "generic";
+}
+
 function extractAllQualityFormats(formats: any[], platform: string): any[] {
   if (!Array.isArray(formats) || formats.length === 0) return [];
 
-  console.log(`📊 Processing ${formats.length} raw formats`);
-
-  const uniqueFormats = new Map();
-  const seenCombinations = new Set();
   const processed: any[] = [];
+  const seenFormats = new Set();
 
-  // 🔥 SORT BY QUALITY (HIGHEST FIRST)
-  const sortedFormats = formats.sort((a: any, b: any) => {
-    // Prioritize by height (resolution)
-    const aHeight = a.height || 0;
-    const bHeight = b.height || 0;
-    if (aHeight !== bHeight) return bHeight - aHeight;
-
-    // Then by bitrate
-    const aBitrate = a.tbr || a.vbr || a.abr || 0;
-    const bBitrate = b.tbr || b.vbr || b.abr || 0;
-    if (aBitrate !== bBitrate) return bBitrate - aBitrate;
-
-    // Prefer MP4 for same quality
-    if (platform === "instagram" || platform === "facebook") {
-      if (a.ext === "mp4" && b.ext !== "mp4") return -1;
-      if (b.ext === "mp4" && a.ext !== "mp4") return 1;
-    }
-
-    return 0;
-  });
-
-  for (const format of sortedFormats) {
+  for (const format of formats) {
     if (!format || !format.format_id) continue;
-
-    // 🔥 MINIMAL SKIPPING (Keep almost everything)
-    if (shouldSkipMinimal(format, platform)) continue;
-
-    const quality = getEnhancedQualityLabel(format);
-    const resolution = getEnhancedResolution(format);
-    const type = getEnhancedFormatType(format);
-    const ext = format.ext || "mp4";
-    const vcodec = format.vcodec === "none" ? null : format.vcodec || null;
-    const acodec = format.acodec === "none" ? null : format.acodec || null;
-
-    // 🔥 ADVANCED DUPLICATE PREVENTION (But keep similar qualities)
-    const uniqueKey = `${format.format_id}`;
-    if (uniqueFormats.has(uniqueKey)) continue;
-
-    // Allow different codecs of same resolution
-    const combinationKey = `${quality}_${resolution}_${type}_${ext}_${vcodec}_${acodec}`;
-    if (seenCombinations.has(combinationKey)) continue;
-
-    uniqueFormats.set(uniqueKey, true);
-    seenCombinations.add(combinationKey);
-
-    const processedFormat = {
+    if (seenFormats.has(format.format_id)) continue;
+    
+    seenFormats.add(format.format_id);
+    
+    processed.push({
       format_id: format.format_id,
-      ext: ext,
-      quality: quality,
-      resolution: resolution,
-      filesize: getEnhancedFileSize(format.filesize || format.filesize_approx),
-      vcodec: vcodec,
-      acodec: acodec,
+      ext: format.ext || "mp4",
+      quality: getQualityLabel(format),
+      resolution: getResolution(format),
+      filesize: getFileSize(format.filesize),
+      vcodec: format.vcodec === "none" ? null : (format.vcodec || null),
+      acodec: format.acodec === "none" ? null : (format.acodec || null),
       fps: format.fps || null,
       tbr: Math.round(format.tbr || 0),
-      vbr: Math.round(format.vbr || 0),
-      abr: Math.round(format.abr || 0),
-      type: type,
-      note: format.format_note || format.format || "",
-      protocol: format.protocol || "https",
+      type: getFormatType(format),
       height: format.height || null,
-      width: format.width || null,
-      language: format.language || null,
-      dynamic_range: format.dynamic_range || null,
-      container: format.container || ext,
-      bitrate_info: getBitrateInfo(format),
-      quality_rank: getQualityRank(format),
-    };
-
-    processed.push(processedFormat);
+      width: format.width || null
+    });
   }
 
-  console.log(
-    `✅ Final processed formats: ${processed.length} (from ${formats.length} raw)`
-  );
-
-  return processed; // Return ALL formats (no artificial limit)
+  return processed;
 }
 
-// 🔥 MINIMAL SKIPPING (Keep almost everything)
-function shouldSkipMinimal(format: any, platform: string): boolean {
-  // Only skip truly problematic formats
-  if (format.ext === "mhtml") return true;
-  if (format.format_id === "sb" || format.format_id === "storyboard")
-    return true;
-
-  // Skip extremely low quality only
-  if (format.height && format.height < 144 && format.acodec === "none")
-    return true;
-
-  // Skip very low bitrate audio-only
-  if (format.vcodec === "none" && format.abr && format.abr < 16) return true;
-
-  return false;
-}
-
-// 🎯 ENHANCED QUALITY LABELING
-function getEnhancedQualityLabel(format: any): string {
+function getQualityLabel(format: any): string {
   if (format.height) {
-    if (format.height >= 4320) return "8K";
-    if (format.height >= 2880) return "5K";
     if (format.height >= 2160) return "4K";
-    if (format.height >= 1800) return "2K+";
     if (format.height >= 1440) return "2K";
-    if (format.height >= 1200) return "1200p";
     if (format.height >= 1080) return "1080p";
-    if (format.height >= 900) return "900p";
     if (format.height >= 720) return "720p";
-    if (format.height >= 600) return "600p";
     if (format.height >= 480) return "480p";
     if (format.height >= 360) return "360p";
-    if (format.height >= 240) return "240p";
-    if (format.height >= 144) return "144p";
     return `${format.height}p`;
   }
-
-  // Audio quality labels
-  if (format.abr) {
-    if (format.abr >= 320) return "320kbps";
-    if (format.abr >= 256) return "256kbps";
-    if (format.abr >= 192) return "192kbps";
-    if (format.abr >= 128) return "128kbps";
-    if (format.abr >= 96) return "96kbps";
-    if (format.abr >= 64) return "64kbps";
-    return `${format.abr}kbps`;
-  }
-
-  // Fallback to format note or bitrate
-  if (format.format_note && format.format_note !== "Default")
-    return format.format_note;
-  if (format.tbr && format.tbr > 0) return `${Math.round(format.tbr)}kbps`;
-
+  if (format.abr && format.vcodec === "none") return `${format.abr}kbps`;
   return "Unknown";
 }
 
-// 🎯 ENHANCED RESOLUTION
-function getEnhancedResolution(format: any): string {
-  if (format.height && format.width) {
-    return `${format.width}x${format.height}`;
-  }
-
-  if (format.height) {
-    // Calculate width based on common aspect ratios
-    let width;
-    if (format.height <= 240)
-      width = Math.round((format.height * 4) / 3); // 4:3 for low res
-    else if (format.height >= 2160)
-      width = Math.round((format.height * 16) / 9); // 16:9 for high res
-    else width = Math.round((format.height * 16) / 9); // Default 16:9
-
-    return `${width}x${format.height}`;
-  }
-
-  if (format.width) {
-    const height = Math.round((format.width * 9) / 16);
-    return `${format.width}x${height}`;
-  }
-
+function getResolution(format: any): string {
+  if (format.height && format.width) return `${format.width}x${format.height}`;
+  if (format.height) return `${Math.round((format.height * 16) / 9)}x${format.height}`;
   return "audio";
 }
 
-// 🎯 ENHANCED FORMAT TYPE
-function getEnhancedFormatType(format: any): string {
+function getFileSize(size: number | null): string {
+  if (!size || size <= 0) return "unknown";
+  const mb = size / (1024 * 1024);
+  if (mb >= 1) return `${mb.toFixed(1)}MB`;
+  return `${(size / 1024).toFixed(0)}KB`;
+}
+
+function getFormatType(format: any): string {
   const hasVideo = format.vcodec && format.vcodec !== "none";
   const hasAudio = format.acodec && format.acodec !== "none";
-
-  if (hasVideo && hasAudio) {
-    return "video+audio";
-  } else if (hasVideo) {
-    return "video-only";
-  } else if (hasAudio) {
-    return "audio-only";
-  }
-
+  if (hasVideo && hasAudio) return "video+audio";
+  if (hasVideo) return "video";
+  if (hasAudio) return "audio";
   return "unknown";
 }
 
-// 🎯 ENHANCED FILE SIZE
-function getEnhancedFileSize(size: number | null | undefined): string {
-  if (!size || size <= 0) return "unknown";
-
-  const tb = size / (1024 * 1024 * 1024 * 1024);
-  const gb = size / (1024 * 1024 * 1024);
-  const mb = size / (1024 * 1024);
-  const kb = size / 1024;
-
-  if (tb >= 1) return `${tb.toFixed(1)}TB`;
-  if (gb >= 1) return `${gb.toFixed(1)}GB`;
-  if (mb >= 1) return `${mb.toFixed(1)}MB`;
-  if (kb >= 1) return `${kb.toFixed(0)}KB`;
-  return `${size}B`;
-}
-
-// 🎯 GET BITRATE INFO
-function getBitrateInfo(format: any): string {
-  const info = [];
-  if (format.vbr && format.vbr > 0) info.push(`V:${Math.round(format.vbr)}`);
-  if (format.abr && format.abr > 0) info.push(`A:${Math.round(format.abr)}`);
-  if (format.tbr && format.tbr > 0 && !format.vbr && !format.abr)
-    info.push(`T:${Math.round(format.tbr)}`);
-  return info.join(" ") || "";
-}
-
-// 🎯 GET QUALITY RANK (for sorting)
-function getQualityRank(format: any): number {
-  if (format.height) {
-    if (format.height >= 4320) return 100; // 8K
-    if (format.height >= 2160) return 90; // 4K
-    if (format.height >= 1440) return 80; // 2K
-    if (format.height >= 1080) return 70; // 1080p
-    if (format.height >= 720) return 60; // 720p
-    if (format.height >= 480) return 50; // 480p
-    if (format.height >= 360) return 40; // 360p
-    if (format.height >= 240) return 30; // 240p
-    return 20;
-  }
-
-  if (format.abr) {
-    if (format.abr >= 320) return 15;
-    if (format.abr >= 192) return 10;
-    if (format.abr >= 128) return 8;
-    return 5;
-  }
-
-  return 1;
-}
-
-// 🎯 GET AVAILABLE QUALITIES SUMMARY
 function getAvailableQualities(formats: any[]): string[] {
   const qualities = new Set<string>();
-
-  formats.forEach((format) => {
+  formats.forEach(format => {
     if (format.quality && format.quality !== "Unknown") {
       qualities.add(format.quality);
     }
   });
-
-  return Array.from(qualities).sort((a, b) => {
-    // Sort by quality rank
-    const getRank = (q: string) => {
-      if (q.includes("8K")) return 100;
-      if (q.includes("4K")) return 90;
-      if (q.includes("2K")) return 80;
-      if (q.includes("1080p")) return 70;
-      if (q.includes("720p")) return 60;
-      if (q.includes("480p")) return 50;
-      if (q.includes("360p")) return 40;
-      if (q.includes("240p")) return 30;
-      if (q.includes("320kbps")) return 15;
-      if (q.includes("192kbps")) return 10;
-      return 1;
-    };
-
-    return getRank(b) - getRank(a);
-  });
-}
-
-// 🔧 HELPER FUNCTIONS (Keep existing)
-function detectPlatform(url: string): string {
-  const cleanUrl = url.toLowerCase();
-  if (cleanUrl.includes("instagram.com")) return "instagram";
-  if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be"))
-    return "youtube";
-  if (cleanUrl.includes("tiktok.com")) return "tiktok";
-  if (cleanUrl.includes("facebook.com") || cleanUrl.includes("fb.watch"))
-    return "facebook";
-  return "generic";
+  return Array.from(qualities);
 }
 
 function formatDuration(seconds: number | null): string {
-  if (!seconds || seconds <= 0) return "";
-
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+  if (!seconds) return "";
+  const minutes = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
-      .toString()
-      .padStart(2, "0")}`;
-  }
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
 function formatNumber(num: number | null): string {
-  if (!num || num <= 0) return "";
-
-  if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
+  if (!num) return "";
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toLocaleString();
+  return num.toString();
 }
 
 function getBestThumbnail(data: any): string {
   if (data.thumbnail) return data.thumbnail;
-
-  if (
-    data.thumbnails &&
-    Array.isArray(data.thumbnails) &&
-    data.thumbnails.length > 0
-  ) {
-    const validThumbnails = data.thumbnails
-      .filter((t: any) => t && t.url && typeof t.url === "string")
-      .sort((a: any, b: any) => {
-        const aArea = (a.width || 0) * (a.height || 0);
-        const bArea = (b.width || 0) * (b.height || 0);
-        return bArea - aArea;
-      });
-
-    if (validThumbnails.length > 0) {
-      return validThumbnails[0].url;
-    }
+  if (data.thumbnails && Array.isArray(data.thumbnails) && data.thumbnails.length > 0) {
+    return data.thumbnails[0].url || "";
   }
-
   return "";
+}
+
+// Add the missing methods for other platforms
+async function tryTikTokMobile(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 30 --retries 4`;
+  command += ` --user-agent "TikTok 26.2.0 rv:262018 (iPhone; iOS 17.0; en_US) Cronet"`;
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, { timeout: 25000, maxBuffer: 1024 * 1024 * 40 });
+  
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "tiktok-mobile",
+      title: data.title || "TikTok Video",
+      platform: "tiktok",
+      formats: extractAllQualityFormats(data.formats || [], "tiktok"),
+      total_formats: (data.formats || []).length
+    };
+  }
+  throw new Error("TikTok mobile failed");
+}
+
+async function tryTikTokDesktop(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 25 --retries 3`;
+  command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"`;
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, { timeout: 20000, maxBuffer: 1024 * 1024 * 30 });
+  
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "tiktok-desktop",
+      title: data.title || "TikTok Video",
+      platform: "tiktok", 
+      formats: extractAllQualityFormats(data.formats || [], "tiktok"),
+      total_formats: (data.formats || []).length
+    };
+  }
+  throw new Error("TikTok desktop failed");
+}
+
+async function tryTikTokAlternative(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --quiet`;
+  command += ` --socket-timeout 15 --retries 1`;
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, { timeout: 12000, maxBuffer: 1024 * 1024 * 20 });
+  
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "tiktok-alternative",
+      title: data.title || "TikTok Video",
+      platform: "tiktok",
+      formats: extractAllQualityFormats(data.formats || [], "tiktok"),
+      total_formats: (data.formats || []).length
+    };
+  }
+  throw new Error("TikTok alternative failed");
+}
+
+async function tryFacebookMobile(url: string) {
+  const mobileUrl = url.replace('www.facebook.com', 'm.facebook.com');
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 30 --retries 4`;
+  command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"`;
+  command += ` "${mobileUrl}"`;
+
+  const { stdout } = await execAsync(command, { timeout: 25000, maxBuffer: 1024 * 1024 * 40 });
+  
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "facebook-mobile",
+      title: data.title || "Facebook Video",
+      platform: "facebook",
+      formats: extractAllQualityFormats(data.formats || [], "facebook"),
+      total_formats: (data.formats || []).length
+    };
+  }
+  throw new Error("Facebook mobile failed");
+}
+
+async function tryFacebookBasic(url: string) {
+  const basicUrl = url.replace('www.facebook.com', 'mbasic.facebook.com');
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 25 --retries 3`;
+  command += ` --user-agent "Mozilla/5.0 (Mobile; rv:40.0) Gecko/40.0 Firefox/40.0"`;
+  command += ` "${basicUrl}"`;
+
+  const { stdout } = await execAsync(command, { timeout: 20000, maxBuffer: 1024 * 1024 * 30 });
+  
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "facebook-basic",
+      title: data.title || "Facebook Video",
+      platform: "facebook",
+      formats: extractAllQualityFormats(data.formats || [], "facebook"),
+      total_formats: (data.formats || []).length
+    };
+  }
+  throw new Error("Facebook basic failed");
+}
+
+async function tryFacebookAlternative(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --quiet`;
+  command += ` --socket-timeout 15 --retries 1`;
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, { timeout: 12000, maxBuffer: 1024 * 1024 * 20 });
+  
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "facebook-alternative",
+      title: data.title || "Facebook Video", 
+      platform: "facebook",
+      formats: extractAllQualityFormats(data.formats || [], "facebook"),
+      total_formats: (data.formats || []).length
+    };
+  }
+  throw new Error("Facebook alternative failed");
+}
+
+async function tryGenericStandard(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 30 --retries 4`;
+  command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"`;
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, { timeout: 25000, maxBuffer: 1024 * 1024 * 40 });
+  
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "generic-standard",
+      title: data.title || "Video",
+      platform: "generic",
+      formats: extractAllQualityFormats(data.formats || [], "generic"),
+      total_formats: (data.formats || []).length
+    };
+  }
+  throw new Error("Generic standard failed");
+}
+
+async function tryGenericMobile(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 20 --retries 2`;
+  command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"`;
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, { timeout: 18000, maxBuffer: 1024 * 1024 * 30 });
+  
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "generic-mobile",
+      title: data.title || "Video",
+      platform: "generic",
+      formats: extractAllQualityFormats(data.formats || [], "generic"),
+      total_formats: (data.formats || []).length
+    };
+  }
+  throw new Error("Generic mobile failed");
+}
+
+async function tryGenericMinimal(url: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --quiet`;
+  command += ` --socket-timeout 10 --retries 1`;
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, { timeout: 8000, maxBuffer: 1024 * 1024 * 15 });
+  
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "generic-minimal",
+      title: data.title || "Video",
+      platform: "generic",
+      formats: extractAllQualityFormats(data.formats || [], "generic"),
+      total_formats: (data.formats || []).length
+    };
+  }
+  throw new Error("Generic minimal failed");
 }
