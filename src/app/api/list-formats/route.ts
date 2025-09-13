@@ -1794,7 +1794,6 @@
 //   if (line.includes("video only")) return "video";
 //   return "video+audio";
 // }
-
 import { NextRequest, NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -1814,24 +1813,28 @@ export async function GET(request: NextRequest) {
     }
 
     const platform = detectPlatform(url);
-    console.log(`🎯 Processing ${platform} with alternative methods:`, url);
+    console.log(`🎯 Processing ${platform} for ALL QUALITIES:`, url);
 
-    // 🔥 TRY MULTIPLE ALTERNATIVE APPROACHES
+    // 🔥 TRY MULTIPLE HIGH-QUALITY EXTRACTION METHODS
     const methods = [
-      () => tryEmbeddedMethod(url, platform),
-      () => tryMobileMethod(url, platform),
-      () => tryAlternativeExtractor(url, platform),
-      () => tryDirectMethod(url, platform),
-      () => tryFallbackAPI(url, platform),
+      () => tryHighQualityMethod(url, platform),
+      () => tryMobileHighQuality(url, platform),
+      () => tryAlternativeHighQuality(url, platform),
+      () => tryEmbeddedHighQuality(url, platform),
+      () => tryDirectHighQuality(url, platform),
     ];
 
     for (let i = 0; i < methods.length; i++) {
       try {
-        console.log(`🔄 Trying method ${i + 1} for ${platform}`);
+        console.log(`🔄 Trying high-quality method ${i + 1} for ${platform}`);
         const result = await methods[i]();
 
-        if (result.success) {
-          console.log(`✅ Success with method ${i + 1} for ${platform}`);
+        if (result.success && result.formats.length > 0) {
+          console.log(
+            `✅ Success with method ${i + 1}: ${
+              result.formats.length
+            } formats found`
+          );
           return NextResponse.json(result);
         }
       } catch (error) {
@@ -1840,12 +1843,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // All methods failed
     return NextResponse.json(
       {
         success: false,
         error: "all_methods_failed",
-        message: `All extraction methods failed for ${platform}. Platform may have updated their protection.`,
+        message: `All high-quality extraction methods failed for ${platform}`,
       },
       { status: 422 }
     );
@@ -1861,156 +1863,52 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// 🔥 METHOD 1: EMBEDDED EXTRACTION
-async function tryEmbeddedMethod(url: string, platform: string) {
+// 🔥 METHOD 1: HIGH-QUALITY FOCUSED EXTRACTION
+async function tryHighQualityMethod(url: string, platform: string) {
   let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
 
-  // Ultra-conservative settings
-  command += ` --socket-timeout 60 --retries 5 --fragment-retries 3`;
-  command += ` --sleep-interval 2 --max-sleep-interval 5`;
+  // High-quality optimized settings
+  command += ` --socket-timeout 90 --retries 10 --fragment-retries 8`;
+  command += ` --sleep-interval 3 --max-sleep-interval 10`;
   command += ` --no-check-certificate --no-call-home`;
 
   switch (platform) {
     case "youtube":
-      // 🔥 EMBEDDED-ONLY APPROACH (No datacenter detection)
-      command += ` --extractor-args "youtube:player_client=web_embedded"`;
-      command += ` --extractor-args "youtube:player_skip=configs,webpage"`;
-      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"`;
+      // 🔥 BEST QUALITY YOUTUBE EXTRACTION
+      command += ` --extractor-args "youtube:player_client=web_embedded,android_creator,ios_music"`;
+      command += ` --extractor-args "youtube:player_skip=dash,hls,configs,webpage"`;
+      command += ` --extractor-args "youtube:skip=translated_subs"`;
+      // Include all formats, not just best
+      command += ` --format "all[height<=2160]"`;
+      command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`;
       break;
 
     case "instagram":
-      // 🔥 MOBILE-ONLY APPROACH
-      command += ` --user-agent "Instagram 219.0.0.12.117 Android"`;
-      command += ` --add-header "X-IG-App-ID:936619743392459"`;
+      // 🔥 HIGH-QUALITY INSTAGRAM EXTRACTION
+      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"`;
+      command += ` --add-header "X-Instagram-AJAX:1"`;
+      command += ` --add-header "X-Requested-With:XMLHttpRequest"`;
+      command += ` --add-header "Accept:*/*"`;
+      command += ` --format "all"`;
       break;
 
     case "facebook":
-      // 🔥 MOBILE WEB APPROACH
+      // 🔥 HIGH-QUALITY FACEBOOK EXTRACTION
       const mobileUrl = url.replace("www.facebook.com", "m.facebook.com");
-      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"`;
+      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"`;
+      command += ` --format "all[height<=1080]"`;
       url = mobileUrl;
       break;
 
     case "tiktok":
-      // 🔥 MOBILE API APPROACH
-      command += ` --user-agent "TikTok 26.2.0 rv:262018 (iPhone; iOS 17.0; en_US) Cronet"`;
-      break;
-  }
-
-  command += ` "${url}"`;
-
-  const { stdout } = await execAsync(command, {
-    timeout: 30000,
-    maxBuffer: 1024 * 1024 * 20,
-  });
-
-  if (stdout && stdout.trim()) {
-    const data = JSON.parse(stdout.trim());
-    return {
-      success: true,
-      method: "embedded",
-      title: data.title || "Video",
-      duration: formatDuration(data.duration),
-      thumbnail: getBestThumbnail(data),
-      uploader: data.uploader || "Unknown",
-      platform: platform,
-      formats: extractFormats(data.formats || []),
-      total_formats: (data.formats || []).length,
-    };
-  }
-
-  throw new Error("Empty response");
-}
-
-// 🔥 METHOD 2: MOBILE-FIRST EXTRACTION
-async function tryMobileMethod(url: string, platform: string) {
-  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
-
-  // Mobile-optimized settings
-  command += ` --socket-timeout 45 --retries 8 --fragment-retries 5`;
-  command += ` --no-check-certificate`;
-
-  switch (platform) {
-    case "youtube":
-      // 🔥 iOS MUSIC APP EXTRACTION
-      command += ` --extractor-args "youtube:player_client=ios_music"`;
-      command += ` --user-agent "com.google.ios.youtubemusic/4.32.1 (iPhone; U; CPU iPhone OS 17_0 like Mac OS X)"`;
+      // 🔥 HIGH-QUALITY TIKTOK EXTRACTION
+      command += ` --user-agent "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"`;
+      command += ` --format "all[height<=1080]"`;
+      command += ` --geo-bypass`;
       break;
 
-    case "instagram":
-      // 🔥 ANDROID APP APPROACH
-      command += ` --user-agent "Instagram 219.0.0.12.117 Android (29/10; 420dpi; 1080x2126; samsung; SM-G975F; beyond2lte; qcom; en_US; 334665273)"`;
-      command += ` --add-header "X-Instagram-AJAX:1"`;
-      command += ` --add-header "X-CSRFToken:missing"`;
-      break;
-
-    case "facebook":
-      // 🔥 FACEBOOK LITE APPROACH
-      const liteUrl = url.replace("facebook.com", "mbasic.facebook.com");
-      command += ` --user-agent "Mozilla/5.0 (Mobile; rv:26.0) Gecko/26.0 Firefox/26.0"`;
-      url = liteUrl;
-      break;
-
-    case "tiktok":
-      // 🔥 MOBILE WEB APPROACH
-      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"`;
-      command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9"`;
-      break;
-  }
-
-  command += ` "${url}"`;
-
-  const { stdout } = await execAsync(command, {
-    timeout: 35000,
-    maxBuffer: 1024 * 1024 * 25,
-  });
-
-  if (stdout && stdout.trim()) {
-    const data = JSON.parse(stdout.trim());
-    return {
-      success: true,
-      method: "mobile",
-      title: data.title || "Video",
-      duration: formatDuration(data.duration),
-      thumbnail: getBestThumbnail(data),
-      uploader: data.uploader || "Unknown",
-      platform: platform,
-      formats: extractFormats(data.formats || []),
-      total_formats: (data.formats || []).length,
-    };
-  }
-
-  throw new Error("Empty mobile response");
-}
-
-// 🔥 METHOD 3: ALTERNATIVE EXTRACTOR
-async function tryAlternativeExtractor(url: string, platform: string) {
-  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
-
-  // Alternative approach settings
-  command += ` --socket-timeout 30 --retries 3`;
-  command += ` --no-check-certificate --flat-playlist`;
-
-  switch (platform) {
-    case "youtube":
-      // 🔥 ANDROID CREATOR STUDIO APPROACH
-      command += ` --extractor-args "youtube:player_client=android_creator"`;
-      command += ` --user-agent "Mozilla/5.0 (Linux; Android 11; SM-G975F)"`;
-      break;
-
-    case "instagram":
-      // 🔥 WEB SCRAPING APPROACH
-      command += ` --user-agent "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"`;
-      command += ` --add-header "Accept:text/html,application/xhtml+xml"`;
-      break;
-
-    case "facebook":
-      // 🔥 BASIC MOBILE APPROACH
-      command += ` --user-agent "Mozilla/5.0 (Mobile; rv:40.0) Gecko/40.0 Firefox/40.0"`;
-      break;
-
-    case "tiktok":
-      // 🔥 DESKTOP APPROACH
+    default:
+      command += ` --format "all[height<=2160]"`;
       command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"`;
       break;
   }
@@ -2018,101 +1916,496 @@ async function tryAlternativeExtractor(url: string, platform: string) {
   command += ` "${url}"`;
 
   const { stdout } = await execAsync(command, {
-    timeout: 25000,
-    maxBuffer: 1024 * 1024 * 15,
+    timeout: 60000,
+    maxBuffer: 1024 * 1024 * 100, // 100MB buffer for high quality
   });
 
   if (stdout && stdout.trim()) {
     const data = JSON.parse(stdout.trim());
+    const allFormats = extractAllQualityFormats(data.formats || [], platform);
+
+    console.log(`🎯 Extracted ${allFormats.length} high-quality formats`);
+
     return {
       success: true,
-      method: "alternative",
+      method: "high-quality",
+      title: data.title || "Video",
+      duration: formatDuration(data.duration),
+      thumbnail: getBestThumbnail(data),
+      uploader: data.uploader || data.channel || "Unknown",
+      view_count: formatNumber(data.view_count),
+      platform: platform,
+      formats: allFormats,
+      total_formats: allFormats.length,
+      available_qualities: getAvailableQualities(allFormats),
+      extracted_at: Date.now(),
+    };
+  }
+
+  throw new Error("Empty high-quality response");
+}
+
+// 🔥 METHOD 2: MOBILE HIGH-QUALITY EXTRACTION
+async function tryMobileHighQuality(url: string, platform: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+
+  command += ` --socket-timeout 60 --retries 8 --fragment-retries 6`;
+  command += ` --no-check-certificate`;
+
+  switch (platform) {
+    case "youtube":
+      // 🔥 iOS MUSIC HIGH QUALITY
+      command += ` --extractor-args "youtube:player_client=ios_music,android_creator"`;
+      command += ` --format "all[height<=2160]"`;
+      command += ` --user-agent "com.google.ios.youtubemusic/4.32.1 (iPhone; U; CPU iPhone OS 17_0 like Mac OS X)"`;
+      break;
+
+    case "instagram":
+      // 🔥 ANDROID APP HIGH QUALITY
+      command += ` --user-agent "Instagram 275.0.0.27.98 Android (30/11; 560dpi; 1440x2560; samsung; SM-G973F; beyond1lte; qcom; en_US; 426871330)"`;
+      command += ` --format "all"`;
+      break;
+
+    case "facebook":
+      command += ` --format "all[height<=1080]"`;
+      command += ` --user-agent "Mozilla/5.0 (Mobile; rv:40.0) Gecko/40.0 Firefox/40.0"`;
+      break;
+
+    case "tiktok":
+      command += ` --format "all[height<=1080]"`;
+      command += ` --user-agent "TikTok 26.2.0 rv:262018 (iPhone; iOS 17.0; en_US) Cronet"`;
+      break;
+  }
+
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 45000,
+    maxBuffer: 1024 * 1024 * 80,
+  });
+
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    const allFormats = extractAllQualityFormats(data.formats || [], platform);
+
+    return {
+      success: true,
+      method: "mobile-high-quality",
       title: data.title || "Video",
       duration: formatDuration(data.duration),
       thumbnail: getBestThumbnail(data),
       uploader: data.uploader || "Unknown",
       platform: platform,
-      formats: extractFormats(data.formats || []),
-      total_formats: (data.formats || []).length,
+      formats: allFormats,
+      total_formats: allFormats.length,
+      available_qualities: getAvailableQualities(allFormats),
+    };
+  }
+
+  throw new Error("Empty mobile high-quality response");
+}
+
+// 🔥 METHOD 3: ALTERNATIVE HIGH-QUALITY
+async function tryAlternativeHighQuality(url: string, platform: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+
+  command += ` --socket-timeout 45 --retries 6`;
+  command += ` --no-check-certificate --flat-playlist`;
+
+  switch (platform) {
+    case "youtube":
+      // 🔥 ANDROID CREATOR HIGH QUALITY
+      command += ` --extractor-args "youtube:player_client=android_creator,web_embedded"`;
+      command += ` --format "all[height<=4320]"`; // Include 8K if available
+      command += ` --user-agent "Mozilla/5.0 (Linux; Android 11; SM-G975F) AppleWebKit/537.36"`;
+      break;
+
+    case "instagram":
+      command += ` --format "all"`;
+      command += ` --user-agent "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`;
+      break;
+
+    default:
+      command += ` --format "all[height<=2160]"`;
+      break;
+  }
+
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 35000,
+    maxBuffer: 1024 * 1024 * 60,
+  });
+
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    const allFormats = extractAllQualityFormats(data.formats || [], platform);
+
+    return {
+      success: true,
+      method: "alternative-high-quality",
+      title: data.title || "Video",
+      duration: formatDuration(data.duration),
+      thumbnail: getBestThumbnail(data),
+      uploader: data.uploader || "Unknown",
+      platform: platform,
+      formats: allFormats,
+      total_formats: allFormats.length,
+      available_qualities: getAvailableQualities(allFormats),
     };
   }
 
   throw new Error("Empty alternative response");
 }
 
-// 🔥 METHOD 4: DIRECT MINIMAL APPROACH
-async function tryDirectMethod(url: string, platform: string) {
-  // Ultra-minimal approach
-  let command = `yt-dlp --dump-single-json --no-warnings --quiet --no-check-certificate`;
-
-  // Minimal settings only
-  command += ` --socket-timeout 20 --retries 2`;
+// 🔥 METHOD 4: EMBEDDED HIGH-QUALITY
+async function tryEmbeddedHighQuality(url: string, platform: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+  command += ` --socket-timeout 30 --retries 4`;
 
   if (platform === "youtube") {
-    // 🔥 SIMPLEST POSSIBLE YOUTUBE EXTRACTION
-    command += ` --extractor-args "youtube:player_client=web"`;
+    // 🔥 EMBEDDED PLAYER HIGH QUALITY
+    command += ` --extractor-args "youtube:player_client=web_embedded"`;
+    command += ` --format "all[height<=2160]"`;
+    command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"`;
+  } else {
+    command += ` --format "all"`;
   }
 
   command += ` "${url}"`;
 
   const { stdout } = await execAsync(command, {
-    timeout: 20000,
-    maxBuffer: 1024 * 1024 * 10,
+    timeout: 25000,
+    maxBuffer: 1024 * 1024 * 40,
   });
 
   if (stdout && stdout.trim()) {
     const data = JSON.parse(stdout.trim());
+    const allFormats = extractAllQualityFormats(data.formats || [], platform);
+
     return {
       success: true,
-      method: "direct",
+      method: "embedded-high-quality",
       title: data.title || "Video",
       duration: formatDuration(data.duration),
       thumbnail: getBestThumbnail(data),
       uploader: data.uploader || "Unknown",
       platform: platform,
-      formats: extractFormats(data.formats || []),
-      total_formats: (data.formats || []).length,
+      formats: allFormats,
+      total_formats: allFormats.length,
+      available_qualities: getAvailableQualities(allFormats),
+    };
+  }
+
+  throw new Error("Empty embedded response");
+}
+
+// 🔥 METHOD 5: DIRECT HIGH-QUALITY
+async function tryDirectHighQuality(url: string, platform: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --quiet --no-check-certificate`;
+  command += ` --socket-timeout 20 --retries 2`;
+
+  if (platform === "youtube") {
+    command += ` --extractor-args "youtube:player_client=web"`;
+  }
+
+  command += ` --format "all"`;
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 20000,
+    maxBuffer: 1024 * 1024 * 30,
+  });
+
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    const allFormats = extractAllQualityFormats(data.formats || [], platform);
+
+    return {
+      success: true,
+      method: "direct-high-quality",
+      title: data.title || "Video",
+      duration: formatDuration(data.duration),
+      thumbnail: getBestThumbnail(data),
+      uploader: data.uploader || "Unknown",
+      platform: platform,
+      formats: allFormats,
+      total_formats: allFormats.length,
+      available_qualities: getAvailableQualities(allFormats),
     };
   }
 
   throw new Error("Empty direct response");
 }
 
-// 🔥 METHOD 5: FALLBACK API APPROACH
-async function tryFallbackAPI(url: string, platform: string) {
-  // Last resort with different extraction method
-  let command = `yt-dlp --list-formats --no-warnings --quiet`;
-  command += ` --user-agent "curl/7.68.0"`;
-  command += ` "${url}"`;
+// 🎯 EXTRACT ALL QUALITY FORMATS (NO LIMITS)
+function extractAllQualityFormats(formats: any[], platform: string): any[] {
+  if (!Array.isArray(formats) || formats.length === 0) return [];
 
-  const { stdout } = await execAsync(command, {
-    timeout: 15000,
-    maxBuffer: 1024 * 1024 * 5,
+  console.log(`📊 Processing ${formats.length} raw formats`);
+
+  const uniqueFormats = new Map();
+  const seenCombinations = new Set();
+  const processed: any[] = [];
+
+  // 🔥 SORT BY QUALITY (HIGHEST FIRST)
+  const sortedFormats = formats.sort((a: any, b: any) => {
+    // Prioritize by height (resolution)
+    const aHeight = a.height || 0;
+    const bHeight = b.height || 0;
+    if (aHeight !== bHeight) return bHeight - aHeight;
+
+    // Then by bitrate
+    const aBitrate = a.tbr || a.vbr || a.abr || 0;
+    const bBitrate = b.tbr || b.vbr || b.abr || 0;
+    if (aBitrate !== bBitrate) return bBitrate - aBitrate;
+
+    // Prefer MP4 for same quality
+    if (platform === "instagram" || platform === "facebook") {
+      if (a.ext === "mp4" && b.ext !== "mp4") return -1;
+      if (b.ext === "mp4" && a.ext !== "mp4") return 1;
+    }
+
+    return 0;
   });
 
-  if (stdout && stdout.includes("mp4")) {
-    // Parse format list output
-    const formats = parseFormatList(stdout);
+  for (const format of sortedFormats) {
+    if (!format || !format.format_id) continue;
 
-    if (formats.length > 0) {
-      return {
-        success: true,
-        method: "fallback-list",
-        title: "Video",
-        duration: "",
-        thumbnail: "",
-        uploader: "Unknown",
-        platform: platform,
-        formats: formats,
-        total_formats: formats.length,
-      };
-    }
+    // 🔥 MINIMAL SKIPPING (Keep almost everything)
+    if (shouldSkipMinimal(format, platform)) continue;
+
+    const quality = getEnhancedQualityLabel(format);
+    const resolution = getEnhancedResolution(format);
+    const type = getEnhancedFormatType(format);
+    const ext = format.ext || "mp4";
+    const vcodec = format.vcodec === "none" ? null : format.vcodec || null;
+    const acodec = format.acodec === "none" ? null : format.acodec || null;
+
+    // 🔥 ADVANCED DUPLICATE PREVENTION (But keep similar qualities)
+    const uniqueKey = `${format.format_id}`;
+    if (uniqueFormats.has(uniqueKey)) continue;
+
+    // Allow different codecs of same resolution
+    const combinationKey = `${quality}_${resolution}_${type}_${ext}_${vcodec}_${acodec}`;
+    if (seenCombinations.has(combinationKey)) continue;
+
+    uniqueFormats.set(uniqueKey, true);
+    seenCombinations.add(combinationKey);
+
+    const processedFormat = {
+      format_id: format.format_id,
+      ext: ext,
+      quality: quality,
+      resolution: resolution,
+      filesize: getEnhancedFileSize(format.filesize || format.filesize_approx),
+      vcodec: vcodec,
+      acodec: acodec,
+      fps: format.fps || null,
+      tbr: Math.round(format.tbr || 0),
+      vbr: Math.round(format.vbr || 0),
+      abr: Math.round(format.abr || 0),
+      type: type,
+      note: format.format_note || format.format || "",
+      protocol: format.protocol || "https",
+      height: format.height || null,
+      width: format.width || null,
+      language: format.language || null,
+      dynamic_range: format.dynamic_range || null,
+      container: format.container || ext,
+      bitrate_info: getBitrateInfo(format),
+      quality_rank: getQualityRank(format),
+    };
+
+    processed.push(processedFormat);
   }
 
-  throw new Error("Empty fallback response");
+  console.log(
+    `✅ Final processed formats: ${processed.length} (from ${formats.length} raw)`
+  );
+
+  return processed; // Return ALL formats (no artificial limit)
 }
 
-// 🔧 HELPER FUNCTIONS
+// 🔥 MINIMAL SKIPPING (Keep almost everything)
+function shouldSkipMinimal(format: any, platform: string): boolean {
+  // Only skip truly problematic formats
+  if (format.ext === "mhtml") return true;
+  if (format.format_id === "sb" || format.format_id === "storyboard")
+    return true;
+
+  // Skip extremely low quality only
+  if (format.height && format.height < 144 && format.acodec === "none")
+    return true;
+
+  // Skip very low bitrate audio-only
+  if (format.vcodec === "none" && format.abr && format.abr < 16) return true;
+
+  return false;
+}
+
+// 🎯 ENHANCED QUALITY LABELING
+function getEnhancedQualityLabel(format: any): string {
+  if (format.height) {
+    if (format.height >= 4320) return "8K";
+    if (format.height >= 2880) return "5K";
+    if (format.height >= 2160) return "4K";
+    if (format.height >= 1800) return "2K+";
+    if (format.height >= 1440) return "2K";
+    if (format.height >= 1200) return "1200p";
+    if (format.height >= 1080) return "1080p";
+    if (format.height >= 900) return "900p";
+    if (format.height >= 720) return "720p";
+    if (format.height >= 600) return "600p";
+    if (format.height >= 480) return "480p";
+    if (format.height >= 360) return "360p";
+    if (format.height >= 240) return "240p";
+    if (format.height >= 144) return "144p";
+    return `${format.height}p`;
+  }
+
+  // Audio quality labels
+  if (format.abr) {
+    if (format.abr >= 320) return "320kbps";
+    if (format.abr >= 256) return "256kbps";
+    if (format.abr >= 192) return "192kbps";
+    if (format.abr >= 128) return "128kbps";
+    if (format.abr >= 96) return "96kbps";
+    if (format.abr >= 64) return "64kbps";
+    return `${format.abr}kbps`;
+  }
+
+  // Fallback to format note or bitrate
+  if (format.format_note && format.format_note !== "Default")
+    return format.format_note;
+  if (format.tbr && format.tbr > 0) return `${Math.round(format.tbr)}kbps`;
+
+  return "Unknown";
+}
+
+// 🎯 ENHANCED RESOLUTION
+function getEnhancedResolution(format: any): string {
+  if (format.height && format.width) {
+    return `${format.width}x${format.height}`;
+  }
+
+  if (format.height) {
+    // Calculate width based on common aspect ratios
+    let width;
+    if (format.height <= 240)
+      width = Math.round((format.height * 4) / 3); // 4:3 for low res
+    else if (format.height >= 2160)
+      width = Math.round((format.height * 16) / 9); // 16:9 for high res
+    else width = Math.round((format.height * 16) / 9); // Default 16:9
+
+    return `${width}x${format.height}`;
+  }
+
+  if (format.width) {
+    const height = Math.round((format.width * 9) / 16);
+    return `${format.width}x${height}`;
+  }
+
+  return "audio";
+}
+
+// 🎯 ENHANCED FORMAT TYPE
+function getEnhancedFormatType(format: any): string {
+  const hasVideo = format.vcodec && format.vcodec !== "none";
+  const hasAudio = format.acodec && format.acodec !== "none";
+
+  if (hasVideo && hasAudio) {
+    return "video+audio";
+  } else if (hasVideo) {
+    return "video-only";
+  } else if (hasAudio) {
+    return "audio-only";
+  }
+
+  return "unknown";
+}
+
+// 🎯 ENHANCED FILE SIZE
+function getEnhancedFileSize(size: number | null | undefined): string {
+  if (!size || size <= 0) return "unknown";
+
+  const tb = size / (1024 * 1024 * 1024 * 1024);
+  const gb = size / (1024 * 1024 * 1024);
+  const mb = size / (1024 * 1024);
+  const kb = size / 1024;
+
+  if (tb >= 1) return `${tb.toFixed(1)}TB`;
+  if (gb >= 1) return `${gb.toFixed(1)}GB`;
+  if (mb >= 1) return `${mb.toFixed(1)}MB`;
+  if (kb >= 1) return `${kb.toFixed(0)}KB`;
+  return `${size}B`;
+}
+
+// 🎯 GET BITRATE INFO
+function getBitrateInfo(format: any): string {
+  const info = [];
+  if (format.vbr && format.vbr > 0) info.push(`V:${Math.round(format.vbr)}`);
+  if (format.abr && format.abr > 0) info.push(`A:${Math.round(format.abr)}`);
+  if (format.tbr && format.tbr > 0 && !format.vbr && !format.abr)
+    info.push(`T:${Math.round(format.tbr)}`);
+  return info.join(" ") || "";
+}
+
+// 🎯 GET QUALITY RANK (for sorting)
+function getQualityRank(format: any): number {
+  if (format.height) {
+    if (format.height >= 4320) return 100; // 8K
+    if (format.height >= 2160) return 90; // 4K
+    if (format.height >= 1440) return 80; // 2K
+    if (format.height >= 1080) return 70; // 1080p
+    if (format.height >= 720) return 60; // 720p
+    if (format.height >= 480) return 50; // 480p
+    if (format.height >= 360) return 40; // 360p
+    if (format.height >= 240) return 30; // 240p
+    return 20;
+  }
+
+  if (format.abr) {
+    if (format.abr >= 320) return 15;
+    if (format.abr >= 192) return 10;
+    if (format.abr >= 128) return 8;
+    return 5;
+  }
+
+  return 1;
+}
+
+// 🎯 GET AVAILABLE QUALITIES SUMMARY
+function getAvailableQualities(formats: any[]): string[] {
+  const qualities = new Set<string>();
+
+  formats.forEach((format) => {
+    if (format.quality && format.quality !== "Unknown") {
+      qualities.add(format.quality);
+    }
+  });
+
+  return Array.from(qualities).sort((a, b) => {
+    // Sort by quality rank
+    const getRank = (q: string) => {
+      if (q.includes("8K")) return 100;
+      if (q.includes("4K")) return 90;
+      if (q.includes("2K")) return 80;
+      if (q.includes("1080p")) return 70;
+      if (q.includes("720p")) return 60;
+      if (q.includes("480p")) return 50;
+      if (q.includes("360p")) return 40;
+      if (q.includes("240p")) return 30;
+      if (q.includes("320kbps")) return 15;
+      if (q.includes("192kbps")) return 10;
+      return 1;
+    };
+
+    return getRank(b) - getRank(a);
+  });
+}
+
+// 🔧 HELPER FUNCTIONS (Keep existing)
 function detectPlatform(url: string): string {
   const cleanUrl = url.toLowerCase();
   if (cleanUrl.includes("instagram.com")) return "instagram";
@@ -2124,96 +2417,50 @@ function detectPlatform(url: string): string {
   return "generic";
 }
 
-function extractFormats(formats: any[]): any[] {
-  if (!Array.isArray(formats)) return [];
-
-  return formats
-    .filter((f) => f && f.format_id)
-    .map((f) => ({
-      format_id: f.format_id,
-      ext: f.ext || "mp4",
-      quality: getQualityLabel(f),
-      resolution: getResolution(f),
-      filesize: getFileSize(f.filesize),
-      type: getFormatType(f),
-      tbr: Math.round(f.tbr || 0),
-    }))
-    .slice(0, 20);
-}
-
-function parseFormatList(output: string): any[] {
-  const lines = output.split("\n");
-  const formats: any[] = [];
-
-  for (const line of lines) {
-    if (line.includes("mp4") || line.includes("webm")) {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length >= 3) {
-        formats.push({
-          format_id: parts[0],
-          ext: parts[1] || "mp4",
-          quality: parts[2] || "unknown",
-          resolution: "unknown",
-          filesize: "unknown",
-          type: "video+audio",
-          tbr: 0,
-        });
-      }
-    }
-  }
-
-  return formats;
-}
-
-function getQualityLabel(format: any): string {
-  if (format.height) {
-    if (format.height >= 1080) return "1080p";
-    if (format.height >= 720) return "720p";
-    if (format.height >= 480) return "480p";
-    if (format.height >= 360) return "360p";
-    return `${format.height}p`;
-  }
-  return "default";
-}
-
-function getResolution(format: any): string {
-  if (format.height && format.width) return `${format.width}x${format.height}`;
-  if (format.height)
-    return `${Math.round((format.height * 16) / 9)}x${format.height}`;
-  return "audio";
-}
-
-function getFileSize(size: number | null): string {
-  if (!size || size <= 0) return "unknown";
-  const mb = size / (1024 * 1024);
-  if (mb >= 1) return `${mb.toFixed(1)}MB`;
-  return `${(size / 1024).toFixed(0)}KB`;
-}
-
-function getFormatType(format: any): string {
-  const hasVideo = format.vcodec && format.vcodec !== "none";
-  const hasAudio = format.acodec && format.acodec !== "none";
-  if (hasVideo && hasAudio) return "video+audio";
-  if (hasVideo) return "video";
-  if (hasAudio) return "audio";
-  return "unknown";
-}
-
 function formatDuration(seconds: number | null): string {
-  if (!seconds) return "";
-  const minutes = Math.floor(seconds / 60);
+  if (!seconds || seconds <= 0) return "";
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  }
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
+}
+
+function formatNumber(num: number | null): string {
+  if (!num || num <= 0) return "";
+
+  if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+  return num.toLocaleString();
 }
 
 function getBestThumbnail(data: any): string {
   if (data.thumbnail) return data.thumbnail;
+
   if (
     data.thumbnails &&
     Array.isArray(data.thumbnails) &&
     data.thumbnails.length > 0
   ) {
-    return data.thumbnails[0].url || "";
+    const validThumbnails = data.thumbnails
+      .filter((t: any) => t && t.url && typeof t.url === "string")
+      .sort((a: any, b: any) => {
+        const aArea = (a.width || 0) * (a.height || 0);
+        const bArea = (b.width || 0) * (b.height || 0);
+        return bArea - aArea;
+      });
+
+    if (validThumbnails.length > 0) {
+      return validThumbnails[0].url;
+    }
   }
+
   return "";
 }
