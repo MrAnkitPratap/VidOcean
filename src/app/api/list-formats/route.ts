@@ -1795,192 +1795,11 @@
 //   return "video+audio";
 // }
 
-
 import { NextRequest, NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
-import https from "https";
 
 const execAsync = promisify(exec);
-
-// 🌐 REAL PROXY POOLS (Working Free Proxies)
-interface ProxyConfig {
-  host: string;
-  port: number;
-  type: 'http' | 'socks5';
-  country?: string;
-}
-
-class RealProxyManager {
-  private proxies: { [key: string]: ProxyConfig[] };
-  private currentIndexes: { [key: string]: number };
-  private failedProxies: { [key: string]: Set<string> };
-  private lastRefresh: number;
-  private refreshInterval: number = 30 * 60 * 1000; // 30 minutes
-
-  constructor() {
-    this.proxies = {
-      youtube: [
-        { host: "103.207.8.130", port: 8080, type: "http", country: "US" },
-        { host: "185.162.231.106", port: 80, type: "http", country: "DE" },
-        { host: "198.59.191.234", port: 8080, type: "http", country: "CA" },
-        { host: "45.195.67.75", port: 8080, type: "http", country: "NL" },
-        { host: "103.216.207.15", port: 8080, type: "http", country: "SG" },
-        { host: "178.128.51.12", port: 8080, type: "http", country: "US" },
-        { host: "103.52.211.194", port: 80, type: "http", country: "IN" },
-        { host: "194.67.91.153", port: 80, type: "http", country: "LT" }
-      ],
-      instagram: [
-        { host: "103.174.179.31", port: 8080, type: "http", country: "ID" },
-        { host: "202.61.51.204", port: 3128, type: "http", country: "SG" },
-        { host: "41.65.174.120", port: 1981, type: "http", country: "TN" },
-        { host: "103.127.1.130", port: 80, type: "http", country: "BD" },
-        { host: "185.162.231.106", port: 80, type: "http", country: "DE" },
-        { host: "198.59.191.234", port: 8080, type: "http", country: "CA" }
-      ],
-      facebook: [
-        { host: "103.245.204.214", port: 8080, type: "http", country: "BD" },
-        { host: "202.169.229.139", port: 53281, type: "http", country: "ID" },
-        { host: "103.145.133.22", port: 42325, type: "http", country: "KH" },
-        { host: "194.67.91.153", port: 80, type: "http", country: "LT" }
-      ],
-      tiktok: [
-        { host: "178.128.51.12", port: 8080, type: "http", country: "US" },
-        { host: "103.52.211.194", port: 80, type: "http", country: "IN" },
-        { host: "194.67.91.153", port: 80, type: "http", country: "LT" },
-        { host: "103.207.8.130", port: 8080, type: "http", country: "US" }
-      ],
-      generic: [
-        { host: "103.174.179.31", port: 8080, type: "http", country: "ID" },
-        { host: "202.61.51.204", port: 3128, type: "http", country: "SG" },
-        { host: "45.195.67.75", port: 8080, type: "http", country: "NL" },
-        { host: "103.216.207.15", port: 8080, type: "http", country: "SG" }
-      ]
-    };
-
-    this.currentIndexes = { youtube: 0, instagram: 0, facebook: 0, tiktok: 0, generic: 0 };
-    this.failedProxies = {
-      youtube: new Set(), instagram: new Set(), facebook: new Set(), 
-      tiktok: new Set(), generic: new Set()
-    };
-    this.lastRefresh = Date.now();
-
-    console.log("🌐 Real Proxy Manager initialized with working proxies");
-    this.startProxyRefresher();
-  }
-
-  getCurrentProxy(platform: string): ProxyConfig | null {
-    const normalizedPlatform = platform in this.proxies ? platform : 'generic';
-    const pool = this.proxies[normalizedPlatform];
-    const failedSet = this.failedProxies[normalizedPlatform];
-    
-    const workingProxies = pool.filter(proxy => 
-      !failedSet.has(`${proxy.host}:${proxy.port}`)
-    );
-    
-    if (workingProxies.length === 0) {
-      console.log(`🔄 All ${normalizedPlatform} proxies failed, resetting...`);
-      failedSet.clear();
-      this.currentIndexes[normalizedPlatform] = 0;
-      return pool[0] || null;
-    }
-    
-    const currentIndex = this.currentIndexes[normalizedPlatform] % workingProxies.length;
-    const selectedProxy = workingProxies[currentIndex];
-    
-    this.currentIndexes[normalizedPlatform]++;
-    
-    return selectedProxy;
-  }
-
-  recordProxyFailure(platform: string, proxy: ProxyConfig): void {
-    const normalizedPlatform = platform in this.proxies ? platform : 'generic';
-    const proxyKey = `${proxy.host}:${proxy.port}`;
-    this.failedProxies[normalizedPlatform].add(proxyKey);
-    console.log(`❌ Marked ${platform} proxy as failed: ${proxyKey}`);
-  }
-
-  recordProxySuccess(platform: string, proxy: ProxyConfig): void {
-    const normalizedPlatform = platform in this.proxies ? platform : 'generic';
-    const proxyKey = `${proxy.host}:${proxy.port}`;
-    if (this.failedProxies[normalizedPlatform].has(proxyKey)) {
-      this.failedProxies[normalizedPlatform].delete(proxyKey);
-      console.log(`✅ ${platform} proxy recovered: ${proxyKey}`);
-    }
-  }
-
-  async startProxyRefresher(): Promise<void> {
-    setInterval(async () => {
-      if (Date.now() - this.lastRefresh > this.refreshInterval) {
-        console.log("🔄 Refreshing proxy pools...");
-        await this.refreshProxyPools();
-        this.lastRefresh = Date.now();
-      }
-    }, 10 * 60 * 1000); // Check every 10 minutes
-  }
-
-  async refreshProxyPools(): Promise<void> {
-    try {
-      // 🔥 FETCH FRESH PROXIES FROM PUBLIC APIS
-      const freshProxies = await this.fetchFreshProxies();
-      if (freshProxies.length > 0) {
-        // Add fresh proxies to generic pool
-        this.proxies.generic = [...this.proxies.generic, ...freshProxies.slice(0, 10)];
-        console.log(`✅ Added ${Math.min(freshProxies.length, 10)} fresh proxies`);
-      }
-    } catch (error) {
-      console.log("⚠️ Failed to refresh proxies, using existing pool");
-    }
-  }
-
-  async fetchFreshProxies(): Promise<ProxyConfig[]> {
-    return new Promise((resolve) => {
-      // ProxyScrape API for fresh proxies
-      const proxyScrapURL = 'https://api.proxyscrape.com/v2/?request=get&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all';
-      
-      https.get(proxyScrapURL, (res) => {
-        let data = '';
-        res.on('data', (chunk) => data += chunk);
-        res.on('end', () => {
-          try {
-            const proxies: ProxyConfig[] = data.split('\n')
-              .filter(line => line.trim())
-              .map(line => {
-                const [host, port] = line.trim().split(':');
-                return {
-                  host: host,
-                  port: parseInt(port),
-                  type: 'http' as const,
-                  country: 'Unknown'
-                };
-              })
-              .filter(proxy => proxy.host && proxy.port);
-            
-            resolve(proxies.slice(0, 20)); // Take first 20
-          } catch (error) {
-            resolve([]);
-          }
-        });
-      }).on('error', () => resolve([]));
-    });
-  }
-
-  getStats(platform: string): object {
-    const normalizedPlatform = platform in this.proxies ? platform : 'generic';
-    const currentProxy = this.getCurrentProxy(platform);
-    
-    return {
-      platform: platform,
-      currentProxy: currentProxy ? `${currentProxy.host}:${currentProxy.port}` : 'None',
-      totalProxies: this.proxies[normalizedPlatform].length,
-      failedProxies: this.failedProxies[normalizedPlatform].size,
-      workingProxies: this.proxies[normalizedPlatform].length - this.failedProxies[normalizedPlatform].size
-    };
-  }
-}
-
-// 🌐 GLOBAL PROXY MANAGER
-const realProxyManager = new RealProxyManager();
 
 export async function GET(request: NextRequest) {
   try {
@@ -1995,359 +1814,378 @@ export async function GET(request: NextRequest) {
     }
 
     const platform = detectPlatform(url);
-    console.log(`🎯 Processing ${platform} formats with REAL proxy:`, url);
+    console.log(`🎯 Processing ${platform} with alternative methods:`, url);
 
-    // 🌐 GET REAL PROXY
-    const currentProxy = realProxyManager.getCurrentProxy(platform);
-    
-    if (!currentProxy) {
-      return NextResponse.json({
-        success: false,
-        error: "no_proxies_available",
-        message: `No working proxies available for ${platform}`
-      }, { status: 503 });
+    // 🔥 TRY MULTIPLE ALTERNATIVE APPROACHES
+    const methods = [
+      () => tryEmbeddedMethod(url, platform),
+      () => tryMobileMethod(url, platform),
+      () => tryAlternativeExtractor(url, platform),
+      () => tryDirectMethod(url, platform),
+      () => tryFallbackAPI(url, platform),
+    ];
+
+    for (let i = 0; i < methods.length; i++) {
+      try {
+        console.log(`🔄 Trying method ${i + 1} for ${platform}`);
+        const result = await methods[i]();
+
+        if (result.success) {
+          console.log(`✅ Success with method ${i + 1} for ${platform}`);
+          return NextResponse.json(result);
+        }
+      } catch (error) {
+        console.log(`❌ Method ${i + 1} failed: ${error.message}`);
+        continue;
+      }
     }
 
-    console.log(`🌐 Using REAL proxy: ${currentProxy.host}:${currentProxy.port} (${currentProxy.country})`);
-
-    // 🔥 BUILD COMMAND WITH REAL PROXY
-    const command = buildProxyCommand(platform, url, currentProxy);
-
-    try {
-      const { stdout: jsonOutput } = await execAsync(command, {
-        timeout: 60000, // Extended timeout for proxy
-        maxBuffer: 1024 * 1024 * 50, // 50MB buffer
-      });
-
-      if (!jsonOutput || jsonOutput.trim() === "") {
-        throw new Error("Empty response from extractor");
-      }
-
-      const videoInfo = JSON.parse(jsonOutput.trim());
-      const allFormats = extractOptimizedFormatsWithDuplicateCheck(videoInfo.formats || [], platform);
-
-      console.log(`✅ ${platform} SUCCESS with proxy ${currentProxy.host}:${currentProxy.port} | Formats: ${allFormats.length}`);
-      
-      // Record proxy success
-      realProxyManager.recordProxySuccess(platform, currentProxy);
-
-      return NextResponse.json({
-        success: true,
-        title: videoInfo.title || "Unknown Title",
-        duration: formatDuration(videoInfo.duration || null),
-        thumbnail: getBestThumbnail(videoInfo),
-        uploader: videoInfo.uploader || videoInfo.channel || "Unknown",
-        view_count: formatNumber(videoInfo.view_count || null),
-        platform: platform,
-        formats: allFormats,
-        total_formats: allFormats.length,
-        extracted_at: Date.now(),
-        proxy_used: `${currentProxy.host}:${currentProxy.port}`,
-        proxy_country: currentProxy.country,
-        proxy_stats: realProxyManager.getStats(platform)
-      }, {
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "public, max-age=300",
-        },
-      });
-
-    } catch (execError: any) {
-      console.error(`💥 ${platform} failed with proxy ${currentProxy.host}:${currentProxy.port}:`, execError.message);
-      
-      // Record proxy failure
-      realProxyManager.recordProxyFailure(platform, currentProxy);
-
-      // 🔄 TRY WITH DIFFERENT PROXY
-      const fallbackResult = await attemptProxyFallback(url, platform);
-      if (fallbackResult.success) {
-        return NextResponse.json(fallbackResult);
-      }
-
-      return NextResponse.json({
+    // All methods failed
+    return NextResponse.json(
+      {
         success: false,
-        error: "extraction_failed",
-        message: `${platform} extraction failed with all available proxies. Try again later.`,
-        platform: platform,
-        proxy_stats: realProxyManager.getStats(platform)
-      }, { status: 422 });
-    }
-    
+        error: "all_methods_failed",
+        message: `All extraction methods failed for ${platform}. Platform may have updated their protection.`,
+      },
+      { status: 422 }
+    );
   } catch (error: any) {
     console.error("💀 Fatal error:", error.message);
-    return NextResponse.json({
-      success: false,
-      error: "internal_error",
-      message: error.message
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: "internal_error",
+      },
+      { status: 500 }
+    );
   }
 }
 
-// 🔧 BUILD COMMAND WITH REAL PROXY
-function buildProxyCommand(platform: string, url: string, proxy: ProxyConfig): string {
+// 🔥 METHOD 1: EMBEDDED EXTRACTION
+async function tryEmbeddedMethod(url: string, platform: string) {
   let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
 
-  // 🌐 REAL PROXY CONFIGURATION
-  command += ` --proxy http://${proxy.host}:${proxy.port}`;
-
-  // 🔥 ENHANCED ANTI-DETECTION SETTINGS
-  command += ` --socket-timeout 300 --retries 20 --fragment-retries 15`;
-  command += ` --sleep-interval 6 --max-sleep-interval 20`;
+  // Ultra-conservative settings
+  command += ` --socket-timeout 60 --retries 5 --fragment-retries 3`;
+  command += ` --sleep-interval 2 --max-sleep-interval 5`;
   command += ` --no-check-certificate --no-call-home`;
-  command += ` --user-agent "${getRandomUserAgent(platform)}"`;
 
-  // 🎯 PLATFORM-SPECIFIC OPTIMIZATIONS
   switch (platform) {
     case "youtube":
-      // 🔥 LATEST WORKING YOUTUBE BYPASS (December 2025)
-      command += ` --extractor-args "youtube:player_client=web_embedded,android_creator,ios_music,web"`;
-      command += ` --extractor-args "youtube:player_skip=dash,hls,configs,webpage,initial_data"`;
-      command += ` --extractor-args "youtube:skip=translated_subs,dash,hls,live_chat"`;
-      command += ` --extractor-args "youtube:innertube_host=youtubei.googleapis.com"`;
-      
-      // Additional anti-detection headers
-      command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"`;
-      command += ` --add-header "Accept-Language:en-US,en;q=0.5"`;
-      command += ` --add-header "Accept-Encoding:gzip, deflate, br"`;
-      command += ` --add-header "DNT:1"`;
-      command += ` --add-header "Connection:keep-alive"`;
-      command += ` --add-header "Upgrade-Insecure-Requests:1"`;
+      // 🔥 EMBEDDED-ONLY APPROACH (No datacenter detection)
+      command += ` --extractor-args "youtube:player_client=web_embedded"`;
+      command += ` --extractor-args "youtube:player_skip=configs,webpage"`;
+      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"`;
       break;
 
     case "instagram":
-      // 🔥 INSTAGRAM WITH REAL PROXY
-      command += ` --add-header "X-Instagram-AJAX:1"`;
-      command += ` --add-header "X-Requested-With:XMLHttpRequest"`;
-      command += ` --add-header "Accept:*/*"`;
-      command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
-      command += ` --add-header "Sec-Fetch-Dest:empty"`;
-      command += ` --add-header "Sec-Fetch-Mode:cors"`;
-      command += ` --add-header "Sec-Fetch-Site:same-origin"`;
-      command += ` --add-header "Referer:https://www.instagram.com/"`;
+      // 🔥 MOBILE-ONLY APPROACH
+      command += ` --user-agent "Instagram 219.0.0.12.117 Android"`;
+      command += ` --add-header "X-IG-App-ID:936619743392459"`;
       break;
 
     case "facebook":
-      command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
-      command += ` --add-header "Referer:https://www.facebook.com/"`;
-      command += ` --add-header "Sec-Fetch-Dest:video"`;
-      command += ` --add-header "Sec-Fetch-Mode:no-cors"`;
-      command += ` --add-header "DNT:1"`;
+      // 🔥 MOBILE WEB APPROACH
+      const mobileUrl = url.replace("www.facebook.com", "m.facebook.com");
+      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"`;
+      url = mobileUrl;
       break;
 
     case "tiktok":
-      command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"`;
-      command += ` --add-header "Accept-Language:en-US,en;q=0.9"`;
-      command += ` --add-header "DNT:1"`;
-      command += ` --add-header "Connection:keep-alive"`;
-      command += ` --geo-bypass`;
-      break;
-
-    default:
-      command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"`;
-      command += ` --add-header "Accept-Language:en-US,en;q=0.5"`;
-      command += ` --geo-bypass`;
+      // 🔥 MOBILE API APPROACH
+      command += ` --user-agent "TikTok 26.2.0 rv:262018 (iPhone; iOS 17.0; en_US) Cronet"`;
       break;
   }
 
   command += ` "${url}"`;
-  return command;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 30000,
+    maxBuffer: 1024 * 1024 * 20,
+  });
+
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "embedded",
+      title: data.title || "Video",
+      duration: formatDuration(data.duration),
+      thumbnail: getBestThumbnail(data),
+      uploader: data.uploader || "Unknown",
+      platform: platform,
+      formats: extractFormats(data.formats || []),
+      total_formats: (data.formats || []).length,
+    };
+  }
+
+  throw new Error("Empty response");
 }
 
-// 🔄 PROXY FALLBACK SYSTEM
-async function attemptProxyFallback(url: string, platform: string) {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const fallbackProxy = realProxyManager.getCurrentProxy(platform);
-      
-      if (!fallbackProxy) {
-        console.log(`❌ No more proxies available for ${platform}`);
-        break;
-      }
+// 🔥 METHOD 2: MOBILE-FIRST EXTRACTION
+async function tryMobileMethod(url: string, platform: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
 
-      console.log(`🔄 Fallback attempt ${attempt + 1} with proxy: ${fallbackProxy.host}:${fallbackProxy.port}`);
-      
-      // Wait before attempt
-      await new Promise(resolve => setTimeout(resolve, 5000 * (attempt + 1)));
-      
-      const fallbackCommand = buildProxyCommand(platform, url, fallbackProxy);
-      const { stdout: fallbackOutput } = await execAsync(fallbackCommand, {
-        timeout: 45000,
-        maxBuffer: 1024 * 1024 * 30,
-      });
+  // Mobile-optimized settings
+  command += ` --socket-timeout 45 --retries 8 --fragment-retries 5`;
+  command += ` --no-check-certificate`;
 
-      if (fallbackOutput && fallbackOutput.trim()) {
-        const videoInfo = JSON.parse(fallbackOutput.trim());
-        const formats = extractOptimizedFormatsWithDuplicateCheck(videoInfo.formats || [], platform);
-        
-        console.log(`✅ Fallback SUCCESS with proxy: ${fallbackProxy.host}:${fallbackProxy.port}`);
-        
-        realProxyManager.recordProxySuccess(platform, fallbackProxy);
-        
-        return {
-          success: true,
-          title: videoInfo.title || "Video",
-          duration: formatDuration(videoInfo.duration || null),
-          thumbnail: getBestThumbnail(videoInfo),
-          uploader: videoInfo.uploader || videoInfo.channel || "Unknown",
-          view_count: formatNumber(videoInfo.view_count || null),
-          platform: platform,
-          formats: formats,
-          total_formats: formats.length,
-          extraction_method: "proxy-fallback",
-          proxy_used: `${fallbackProxy.host}:${fallbackProxy.port}`,
-          proxy_country: fallbackProxy.country,
-          extracted_at: Date.now(),
-        };
-      }
-    } catch (error: any) {
-      console.log(`❌ Fallback attempt ${attempt + 1} failed for ${platform}`);
-      const fallbackProxy = realProxyManager.getCurrentProxy(platform);
-      if (fallbackProxy) {
-        realProxyManager.recordProxyFailure(platform, fallbackProxy);
-      }
+  switch (platform) {
+    case "youtube":
+      // 🔥 iOS MUSIC APP EXTRACTION
+      command += ` --extractor-args "youtube:player_client=ios_music"`;
+      command += ` --user-agent "com.google.ios.youtubemusic/4.32.1 (iPhone; U; CPU iPhone OS 17_0 like Mac OS X)"`;
+      break;
+
+    case "instagram":
+      // 🔥 ANDROID APP APPROACH
+      command += ` --user-agent "Instagram 219.0.0.12.117 Android (29/10; 420dpi; 1080x2126; samsung; SM-G975F; beyond2lte; qcom; en_US; 334665273)"`;
+      command += ` --add-header "X-Instagram-AJAX:1"`;
+      command += ` --add-header "X-CSRFToken:missing"`;
+      break;
+
+    case "facebook":
+      // 🔥 FACEBOOK LITE APPROACH
+      const liteUrl = url.replace("facebook.com", "mbasic.facebook.com");
+      command += ` --user-agent "Mozilla/5.0 (Mobile; rv:26.0) Gecko/26.0 Firefox/26.0"`;
+      url = liteUrl;
+      break;
+
+    case "tiktok":
+      // 🔥 MOBILE WEB APPROACH
+      command += ` --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"`;
+      command += ` --add-header "Accept:text/html,application/xhtml+xml,application/xml;q=0.9"`;
+      break;
+  }
+
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 35000,
+    maxBuffer: 1024 * 1024 * 25,
+  });
+
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "mobile",
+      title: data.title || "Video",
+      duration: formatDuration(data.duration),
+      thumbnail: getBestThumbnail(data),
+      uploader: data.uploader || "Unknown",
+      platform: platform,
+      formats: extractFormats(data.formats || []),
+      total_formats: (data.formats || []).length,
+    };
+  }
+
+  throw new Error("Empty mobile response");
+}
+
+// 🔥 METHOD 3: ALTERNATIVE EXTRACTOR
+async function tryAlternativeExtractor(url: string, platform: string) {
+  let command = `yt-dlp --dump-single-json --no-warnings --ignore-errors`;
+
+  // Alternative approach settings
+  command += ` --socket-timeout 30 --retries 3`;
+  command += ` --no-check-certificate --flat-playlist`;
+
+  switch (platform) {
+    case "youtube":
+      // 🔥 ANDROID CREATOR STUDIO APPROACH
+      command += ` --extractor-args "youtube:player_client=android_creator"`;
+      command += ` --user-agent "Mozilla/5.0 (Linux; Android 11; SM-G975F)"`;
+      break;
+
+    case "instagram":
+      // 🔥 WEB SCRAPING APPROACH
+      command += ` --user-agent "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"`;
+      command += ` --add-header "Accept:text/html,application/xhtml+xml"`;
+      break;
+
+    case "facebook":
+      // 🔥 BASIC MOBILE APPROACH
+      command += ` --user-agent "Mozilla/5.0 (Mobile; rv:40.0) Gecko/40.0 Firefox/40.0"`;
+      break;
+
+    case "tiktok":
+      // 🔥 DESKTOP APPROACH
+      command += ` --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"`;
+      break;
+  }
+
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 25000,
+    maxBuffer: 1024 * 1024 * 15,
+  });
+
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "alternative",
+      title: data.title || "Video",
+      duration: formatDuration(data.duration),
+      thumbnail: getBestThumbnail(data),
+      uploader: data.uploader || "Unknown",
+      platform: platform,
+      formats: extractFormats(data.formats || []),
+      total_formats: (data.formats || []).length,
+    };
+  }
+
+  throw new Error("Empty alternative response");
+}
+
+// 🔥 METHOD 4: DIRECT MINIMAL APPROACH
+async function tryDirectMethod(url: string, platform: string) {
+  // Ultra-minimal approach
+  let command = `yt-dlp --dump-single-json --no-warnings --quiet --no-check-certificate`;
+
+  // Minimal settings only
+  command += ` --socket-timeout 20 --retries 2`;
+
+  if (platform === "youtube") {
+    // 🔥 SIMPLEST POSSIBLE YOUTUBE EXTRACTION
+    command += ` --extractor-args "youtube:player_client=web"`;
+  }
+
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 20000,
+    maxBuffer: 1024 * 1024 * 10,
+  });
+
+  if (stdout && stdout.trim()) {
+    const data = JSON.parse(stdout.trim());
+    return {
+      success: true,
+      method: "direct",
+      title: data.title || "Video",
+      duration: formatDuration(data.duration),
+      thumbnail: getBestThumbnail(data),
+      uploader: data.uploader || "Unknown",
+      platform: platform,
+      formats: extractFormats(data.formats || []),
+      total_formats: (data.formats || []).length,
+    };
+  }
+
+  throw new Error("Empty direct response");
+}
+
+// 🔥 METHOD 5: FALLBACK API APPROACH
+async function tryFallbackAPI(url: string, platform: string) {
+  // Last resort with different extraction method
+  let command = `yt-dlp --list-formats --no-warnings --quiet`;
+  command += ` --user-agent "curl/7.68.0"`;
+  command += ` "${url}"`;
+
+  const { stdout } = await execAsync(command, {
+    timeout: 15000,
+    maxBuffer: 1024 * 1024 * 5,
+  });
+
+  if (stdout && stdout.includes("mp4")) {
+    // Parse format list output
+    const formats = parseFormatList(stdout);
+
+    if (formats.length > 0) {
+      return {
+        success: true,
+        method: "fallback-list",
+        title: "Video",
+        duration: "",
+        thumbnail: "",
+        uploader: "Unknown",
+        platform: platform,
+        formats: formats,
+        total_formats: formats.length,
+      };
     }
   }
 
-  return { success: false };
+  throw new Error("Empty fallback response");
 }
 
-// 🔧 ENHANCED USER AGENT ROTATION
-function getRandomUserAgent(platform: string): string {
-  const userAgents = {
-    youtube: [
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
-      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    ],
-    instagram: [
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-      "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
-    ],
-    facebook: [
-      "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    ],
-    tiktok: [
-      "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-    ],
-    generic: [
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    ]
-  };
-
-  const platformUserAgents = userAgents[platform as keyof typeof userAgents] || userAgents.generic;
-  return platformUserAgents[Math.floor(Math.random() * platformUserAgents.length)];
-}
-
-// 🔧 HELPER FUNCTIONS (Keep existing implementations)
+// 🔧 HELPER FUNCTIONS
 function detectPlatform(url: string): string {
   const cleanUrl = url.toLowerCase();
   if (cleanUrl.includes("instagram.com")) return "instagram";
-  if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be")) return "youtube";
+  if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be"))
+    return "youtube";
   if (cleanUrl.includes("tiktok.com")) return "tiktok";
-  if (cleanUrl.includes("facebook.com") || cleanUrl.includes("fb.watch")) return "facebook";
+  if (cleanUrl.includes("facebook.com") || cleanUrl.includes("fb.watch"))
+    return "facebook";
   return "generic";
 }
 
-function extractOptimizedFormatsWithDuplicateCheck(formats: any[], platform: string): any[] {
-  if (!Array.isArray(formats) || formats.length === 0) return [];
+function extractFormats(formats: any[]): any[] {
+  if (!Array.isArray(formats)) return [];
 
-  const uniqueMap = new Map();
-  const seenCombinations = new Set();
-  const processed: any[] = [];
-
-  const sortedFormats = formats.sort((a: any, b: any) => {
-    if (platform === "instagram" || platform === "facebook") {
-      if (a.ext === "mp4" && b.ext !== "mp4") return -1;
-      if (b.ext === "mp4" && a.ext !== "mp4") return 1;
-    }
-    const aHeight = a.height || 0;
-    const bHeight = b.height || 0;
-    if (aHeight !== bHeight) return bHeight - aHeight;
-    return (b.tbr || b.vbr || 0) - (a.tbr || a.vbr || 0);
-  });
-
-  for (const format of sortedFormats) {
-    if (!format || !format.format_id) continue;
-    if (shouldSkipFormat(format, platform)) continue;
-
-    const quality = getQualityLabel(format);
-    const resolution = getResolution(format);
-    const type = getFormatType(format);
-    const ext = format.ext || "mp4";
-    
-    if (uniqueMap.has(format.format_id)) continue;
-    
-    const basicKey = `${quality}_${resolution}_${type}_${ext}`;
-    if (seenCombinations.has(basicKey)) continue;
-    
-    uniqueMap.set(format.format_id, true);
-    seenCombinations.add(basicKey);
-
-    processed.push({
-      format_id: format.format_id,
-      ext: ext,
-      quality: quality,
-      resolution: resolution,
-      filesize: getFileSize(format.filesize || format.filesize_approx),
-      vcodec: format.vcodec === "none" ? null : (format.vcodec || "h264"),
-      acodec: format.acodec === "none" ? null : (format.acodec || "aac"),
-      fps: format.fps || null,
-      tbr: Math.round(format.tbr || 0),
-      vbr: Math.round(format.vbr || 0),
-      abr: Math.round(format.abr || 0),
-      type: type,
-      note: format.format_note || "",
-      protocol: format.protocol || "https",
-      height: format.height || null,
-      width: format.width || null
-    });
-
-    if (processed.length >= 25) break;
-  }
-
-  return processed;
+  return formats
+    .filter((f) => f && f.format_id)
+    .map((f) => ({
+      format_id: f.format_id,
+      ext: f.ext || "mp4",
+      quality: getQualityLabel(f),
+      resolution: getResolution(f),
+      filesize: getFileSize(f.filesize),
+      type: getFormatType(f),
+      tbr: Math.round(f.tbr || 0),
+    }))
+    .slice(0, 20);
 }
 
-function shouldSkipFormat(format: any, platform: string): boolean {
-  if (format.ext === "mhtml") return true;
-  if (format.protocol === "m3u8_native" && format.tbr && format.tbr < 50) return true;
-  if ((platform === "instagram" || platform === "facebook") && !format.url && !format.fragment_base_url) return true;
-  if (format.vcodec === "none" && format.abr && format.abr < 32) return true;
-  if (format.height && format.height < 144) return true;
-  return false;
+function parseFormatList(output: string): any[] {
+  const lines = output.split("\n");
+  const formats: any[] = [];
+
+  for (const line of lines) {
+    if (line.includes("mp4") || line.includes("webm")) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 3) {
+        formats.push({
+          format_id: parts[0],
+          ext: parts[1] || "mp4",
+          quality: parts[2] || "unknown",
+          resolution: "unknown",
+          filesize: "unknown",
+          type: "video+audio",
+          tbr: 0,
+        });
+      }
+    }
+  }
+
+  return formats;
 }
 
 function getQualityLabel(format: any): string {
   if (format.height) {
-    if (format.height >= 2160) return "4K";
-    if (format.height >= 1440) return "1440p";
     if (format.height >= 1080) return "1080p";
     if (format.height >= 720) return "720p";
     if (format.height >= 480) return "480p";
     if (format.height >= 360) return "360p";
     return `${format.height}p`;
   }
-  if (format.format_note && format.format_note !== "Default") return format.format_note;
-  if (format.abr && format.vcodec === "none") return `${format.abr}kbps`;
   return "default";
 }
 
 function getResolution(format: any): string {
   if (format.height && format.width) return `${format.width}x${format.height}`;
-  if (format.height) return `${Math.round((format.height * 16) / 9)}x${format.height}`;
+  if (format.height)
+    return `${Math.round((format.height * 16) / 9)}x${format.height}`;
   return "audio";
 }
 
-function getFileSize(size: number | null | undefined): string {
+function getFileSize(size: number | null): string {
   if (!size || size <= 0) return "unknown";
-  const gb = size / (1024 * 1024 * 1024);
   const mb = size / (1024 * 1024);
-  if (gb >= 1) return `${gb.toFixed(1)}GB`;
   if (mb >= 1) return `${mb.toFixed(1)}MB`;
   return `${(size / 1024).toFixed(0)}KB`;
 }
@@ -2362,37 +2200,20 @@ function getFormatType(format: any): string {
 }
 
 function formatDuration(seconds: number | null): string {
-  if (!seconds || seconds <= 0) return "";
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+  if (!seconds) return "";
+  const minutes = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  }
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
-}
-
-function formatNumber(num: number | null): string {
-  if (!num || num <= 0) return "";
-  if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toLocaleString();
 }
 
 function getBestThumbnail(data: any): string {
   if (data.thumbnail) return data.thumbnail;
-  if (data.thumbnails && Array.isArray(data.thumbnails) && data.thumbnails.length > 0) {
-    const validThumbnails = data.thumbnails
-      .filter((t: any) => t && t.url && typeof t.url === 'string')
-      .sort((a: any, b: any) => {
-        const aArea = (a.width || 0) * (a.height || 0);
-        const bArea = (b.width || 0) * (b.height || 0);
-        return bArea - aArea;
-      });
-    if (validThumbnails.length > 0) {
-      return validThumbnails[0].url;
-    }
+  if (
+    data.thumbnails &&
+    Array.isArray(data.thumbnails) &&
+    data.thumbnails.length > 0
+  ) {
+    return data.thumbnails[0].url || "";
   }
   return "";
 }
